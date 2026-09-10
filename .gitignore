@@ -24,6 +24,7 @@ data
 .env.test.local
 .env.production.local
 .env.local
+.env.dashboard.local
 
 # caches
 .eslintcache
@@ -35,3 +36,4 @@ data
 
 # Finder (MacOS) folder config
 .DS_Store
+.vercel

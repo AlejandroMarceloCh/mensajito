@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["bun", "react", "react-dom"]
+  },
+  "include": ["src/dashboard/**/*.ts", "src/dashboard/**/*.tsx", "src/dashboard-data*.ts", "src/dashboard-http*.ts", "src/dashboard-server.ts", "api/**/*.ts"]
+}
