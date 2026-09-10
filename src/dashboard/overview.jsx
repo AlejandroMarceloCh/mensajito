@@ -113,7 +113,7 @@ export function Overview({ onOpen }) {
             children: [
               /* @__PURE__ */ jsx_runtime.jsx("span", {
                 className: "demo-badge",
-                children: USE_MOCK ? "Entorno demo" : "Supabase · Solo lectura"
+                children: USE_MOCK ? "Entorno demo" : all.some(c => c.profile?.demo === true) ? "Supabase · Incluye datos DEMO" : "Supabase · Solo lectura"
               }),
               /* @__PURE__ */ jsx_runtime.jsx("span", {
                 className: "team-avatar",

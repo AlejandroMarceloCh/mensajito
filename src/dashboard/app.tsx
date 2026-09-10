@@ -305,7 +305,6 @@ function App() {
   if (!authenticated) return <LoginScreen onSuccess={() => setAuthenticated(true)} />;
 
   const followUpCount = stats?.followUpsPending ?? 0;
-  const connectedAgents = (["sales", "housing"] as const).filter((kind) => (stats?.byAgent[kind] ?? 0) > 0);
   return (
     <div className={`app-shell ${view === "inbox" && selectedId ? "has-detail" : ""}`}>
       <aside className="sidebar">
@@ -315,9 +314,6 @@ function App() {
           <button title="Bandeja" aria-label="Bandeja" aria-current={view === "inbox" ? "page" : undefined} className={`nav-item ${view === "inbox" ? "nav-item--active" : ""}`} onClick={() => setView("inbox")}><Inbox size={18}/> <span>Bandeja</span><b>{stats?.leadsThisMonth ?? contacts.length}</b></button>
           <button className="nav-item" disabled><Icon name="building"/> <span>Proyectos</span><em>Pronto</em></button>
         </nav>
-        <div className="sidebar-agent-card">
-          <span className="live-dot"/><div><strong>{USE_MOCK ? "Datos de demostración" : "Supabase · solo lectura"}</strong><small>{connectedAgents.length ? connectedAgents.map((kind) => agentLabels[kind].name).join(" · ") : "Sin agentes con registros"}</small></div>
-        </div>
         <button className="nav-item logout" onClick={() => void signOut()}><Icon name="logout"/><span>Cerrar sesión</span></button>
       </aside>
 
