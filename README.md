@@ -17,8 +17,8 @@ Crea tu configuración local:
 cp .env.example .env
 ```
 
-Completa en `.env` las credenciales de Kapso, Supabase y OpenAI. Nunca subas ese
-archivo al repositorio.
+Completa en `.env` las credenciales de Kapso, la Secret key de Supabase y la API
+key del modelo. Nunca subas ese archivo al repositorio.
 
 Aplica la migración inicial ubicada en
 `supabase/migrations/20260910204500_initial_lead_memory.sql` a tu proyecto de
