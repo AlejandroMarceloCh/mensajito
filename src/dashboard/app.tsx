@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { Overview } from "./overview";
+import { Overview } from "./overview.jsx";
 import { LayoutDashboard, Inbox, LogOut } from "lucide-react";
 import "./live-inbox.css";
 import type { AgentKind, ContactDetail, ContactListItem, Stage, Stats } from "./types";
@@ -321,7 +321,7 @@ function App() {
         <button className="nav-item logout" onClick={() => void signOut()}><Icon name="logout"/><span>Cerrar sesión</span></button>
       </aside>
 
-      {view === "overview" ? <Overview onOpen={(id) => { setAgent("all"); setStage("all"); setQuery(""); setSelectedId(id); setView("inbox"); }} /> : <main className="workspace">
+      {view === "overview" ? <Overview onOpen={(id: string) => { setAgent("all"); setStage("all"); setQuery(""); setSelectedId(id); setView("inbox"); }} /> : <main className="workspace">
         <header className="topbar">
           <div>
             <p className="eyebrow">Operación comercial</p>

@@ -24,7 +24,7 @@ El dashboard aislado de datos reales sigue disponible con `bun run dev:dashboard
 
 El HTML/React se compila con Bun a `dist`. La función Node `api/[...path].ts` expone las lecturas del dashboard. No se despliega el servidor Bun del agente ni su webhook a Vercel.
 
-Variables privadas de servidor, tanto en Production como Preview:
+Variables privadas de servidor para cada entorno que se despliegue (Production está configurado; Preview requiere su propia configuración):
 
 | Variable | Uso |
 | --- | --- |
@@ -45,13 +45,15 @@ Guías usadas: [funciones Node de Vercel](https://vercel.com/docs/functions/runt
 - `appointment_requested` no equivale a reserva confirmada. `closed` no implica venta ni pérdida.
 - Sin eventos históricos no se presenta una tasa de retención ni se atribuye una mejora al agente.
 
-## Citas: hallazgo de integración
+## Compatibilidad con main y citas
 
-Al revisar `origin/main` en `f52f333`, la tabla `appointments` existe en la migración inicial. La herramienta `agendar_visita` llama a Cal.com y actualiza el perfil (`visitBooked`, `visitAt`), pero no inserta la cita en `appointments`. Por eso esta UI no inventa una reserva basándose en el texto de una conversación. El frente de agente debe acordar y persistir esa escritura, con idempotencia, para verla aquí.
+La rama incorpora `origin/main` en `49937fc`, que agrega persistencia de leads, score, ahorros y visitas en Supabase. El dashboard consulta las tablas del equipo y distingue una solicitud de una cita confirmada. Nunca infiere una reserva únicamente desde el texto del chat. Los registros anteriores no se reconstruyen automáticamente: si la tabla de citas está vacía, la interfaz lo indica.
+
+El último contacto entrante y saliente se calcula a partir de `messages.created_at`; los próximos contactos usan `follow_ups.scheduled_for`. No se crean fechas ficticias ni seguimientos automáticos desde el dashboard.
 
 ## Diseño y QA
 
-Se aplicaron `build-dashboard`, `power-bi-report-design-consultation` y el curso UTEC del vault: Data Storytelling, semana 9 (propósito, moderación de color y conclusión respaldada). Resumen, captación, seguimientos y citas se separan para evitar paneles minúsculos; etiquetas principales 16–18 px.
+Se conserva la versión verde original elegida por el usuario, con React, Recharts, Radix UI y Lucide, recuperación de su composición visual y conexión real a Supabase. Las skills `build-dashboard` y `power-bi-report-design-consultation` orientan la validación de fuentes, filtros y lectura sin sustituir el diseño elegido.
 
 ```sh
 bun run typecheck:dashboard

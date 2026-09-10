@@ -71,6 +71,21 @@ describe("live dashboard source mapping", () => {
     expect(mapSnapshot(tables({ ...base, lead_profiles: [{ contact_id: "a", extra: { notes: "Explicit note", qualificationNote: "Other" } }] }), now).contacts[0]?.profile.notes).toBe("Explicit note");
   });
 
+  test("prefers the real CRM columns over legacy JSON values", () => {
+    const result = mapSnapshot(tables({ contacts: [{ ...contact("a"), intent_score: 5 }], lead_profiles: [{ contact_id: "a", savings: 0, extra: { intentScore: 2, savings: 30000 } }] }), now);
+    expect(result.contacts[0]).toMatchObject({ intentScore: 5, profile: { savings: 0 } });
+  });
+
+  test("keeps legacy JSON values when CRM columns are absent or null", () => {
+    const result = mapSnapshot(tables({ contacts: [{ ...contact("a"), intent_score: null }], lead_profiles: [{ contact_id: "a", savings: null, extra: { intentScore: 4, savings: 30000 } }] }), now);
+    expect(result.contacts[0]).toMatchObject({ intentScore: 4, profile: { savings: 30000 } });
+  });
+
+  test("does not invent contact dates from profile edits or booking dates", () => {
+    const result = mapSnapshot(tables({ contacts: [{ ...contact("a"), updated_at: "2026-09-10T19:00:00Z" }], appointments: [{ id: "booking", contact_id: "a", kind: "visit", status: "confirmed", requested_for: "2026-09-12T20:00:00Z" }] }), now);
+    expect(result.contacts[0]).toMatchObject({ lastInboundAt: null, lastOutboundAt: null, sessionOpen: false });
+  });
+
   test("keeps failed follow-ups visible but only pending follow-ups drive the next contact", () => {
     const result = mapSnapshot(tables({ follow_ups: [
       { id: "failed", contact_id: "a", scheduled_for: "2026-09-08T20:00:00Z", status: "failed", reason: "Delivery failed", created_at: "2026-09-01T20:00:00Z" },
@@ -94,6 +109,15 @@ describe("live dashboard source mapping", () => {
 
   test("fails visibly for an unsupported agent instead of silently assigning sales", () => {
     expect(() => mapSnapshot(tables({ contacts: [contact("a", "unrecognized")] }), now)).toThrow("Agente de origen no reconocido");
+  });
+
+  test("recognizes a confirmed visit from main only when tied to the current conversation", () => {
+    const base = { conversations: [conversation("current", "a", { stage: "appointment_requested" })] };
+    const booking = { id: "booking", contact_id: "a", conversation_id: "current", kind: "visit", status: "confirmed", requested_for: "2026-09-12T20:00:00Z" };
+    expect(mapSnapshot(tables({ ...base, appointments: [booking] }), now).contacts[0]).toMatchObject({ stage: "visit_scheduled", sourceStage: "appointment_requested" });
+    for (const changes of [{ status: "requested" }, { status: "cancelled" }, { requested_for: null }, { conversation_id: "archived" }, { kind: "call" }]) {
+      expect(mapSnapshot(tables({ ...base, appointments: [{ ...booking, ...changes }] }), now).contacts[0]?.stage).toBe("appointment_requested");
+    }
   });
 
   test("does not mutate source table ordering", () => {
@@ -134,6 +158,51 @@ describe("dashboard snapshot reader", () => {
     expect(a).toBe(b);
     expect(await read()).toBe(a);
     expect(requests).toBe(6);
+  });
+
+  test("reads real CRM columns on a migrated database", async () => {
+    const requests: URL[] = [];
+    const read = createSnapshotReader("https://fixture.invalid", "fixture-key", fixtureFetch(url => {
+      requests.push(url);
+      if (url.pathname.endsWith("/contacts")) return Response.json([{ ...contact("a"), intent_score: 5 }]);
+      if (url.pathname.endsWith("/lead_profiles")) return Response.json([{ contact_id: "a", savings: 50000 }]);
+      return Response.json([]);
+    }));
+    expect((await read()).contacts[0]).toMatchObject({ intentScore: 5, profile: { savings: 50000 } });
+    expect(requests.find(url => url.pathname.endsWith("/contacts"))?.searchParams.get("select")).toContain("intent_score");
+    expect(requests.find(url => url.pathname.endsWith("/lead_profiles"))?.searchParams.get("select")).toContain("savings");
+  });
+
+  test("falls back only for the two exact optional CRM columns on an older database", async () => {
+    const requests: URL[] = [];
+    const read = createSnapshotReader("https://fixture.invalid", "fixture-key", fixtureFetch(url => {
+      requests.push(url);
+      const selection = url.searchParams.get("select") ?? "";
+      if (url.pathname.endsWith("/contacts")) {
+        if (selection.includes("intent_score")) return Response.json({ code: "42703", message: "column contacts.intent_score does not exist" }, { status: 400 });
+        return Response.json([contact("a")]);
+      }
+      if (url.pathname.endsWith("/lead_profiles")) {
+        if (selection.includes("savings")) return Response.json({ code: "PGRST204", message: "Could not find the 'savings' column of 'lead_profiles' in the schema cache" }, { status: 400 });
+        return Response.json([{ contact_id: "a", extra: { intentScore: 4, savings: 12000 } }]);
+      }
+      return Response.json([]);
+    }));
+    expect((await read()).contacts[0]).toMatchObject({ intentScore: 4, profile: { savings: 12000 } });
+    expect(requests.filter(url => url.pathname.endsWith("/contacts"))).toHaveLength(2);
+    expect(requests.filter(url => url.pathname.endsWith("/lead_profiles"))).toHaveLength(2);
+  });
+
+  test("does not hide unrelated schema or permission errors behind optional-column fallback", async () => {
+    for (const error of [{ code: "42703", message: "column contacts.name does not exist" }, { code: "42501", message: "permission denied for contacts.intent_score" }, { code: "PGRST204", message: "Could not find the 'intent_score' column of 'other_table'" }]) {
+      let contactRequests = 0;
+      const read = createSnapshotReader("https://fixture.invalid", "fixture-key", fixtureFetch(url => {
+        if (url.pathname.endsWith("/contacts")) { contactRequests++; return Response.json(error, { status: 400 }); }
+        return Response.json([]);
+      }));
+      await expect(read()).rejects.toThrow(`No se pudo leer contacts (${error.code})`);
+      expect(contactRequests).toBe(1);
+    }
   });
 
   test("fails the entire snapshot if one source table fails, then retries instead of caching demo data", async () => {

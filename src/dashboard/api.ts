@@ -16,11 +16,14 @@ import { mockContacts, mockFollowUps, mockMessages } from "./mock-data";
 // before React mounts; a live API failure never swaps real data for mock data.
 export let USE_MOCK = true;
 export let READ_ONLY = false;
+export const allowsLocalDemo = (hostname: string) => ["localhost", "127.0.0.1", "[::1]", "::1"].includes(hostname);
 export async function initializeDashboard(): Promise<void> {
   const response = await fetch("/api/dashboard/config", { cache: "no-store" });
-  if (response.status === 404) { USE_MOCK = true; READ_ONLY = false; return; }
+  if (response.status === 404 || response.headers.get("content-type")?.includes("text/html")) {
+    if (!allowsLocalDemo(window.location.hostname)) throw new Error("No se pudo verificar Supabase. No se mostrarán datos de ejemplo en el sitio publicado.");
+    USE_MOCK = true; READ_ONLY = false; return;
+  }
   if (!response.ok) throw new Error("No se pudo comprobar la conexión del dashboard.");
-  if (response.headers.get("content-type")?.includes("text/html")) { USE_MOCK = true; READ_ONLY = false; return; }
   const config = await response.json() as { mode?: string; readOnly?: boolean };
   if (config.mode !== "live") throw new Error("Modo de datos desconocido; no se mostrarán datos de ejemplo.");
   USE_MOCK = false;

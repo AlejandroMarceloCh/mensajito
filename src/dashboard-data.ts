@@ -26,6 +26,7 @@ export function mapSnapshot(source: SourceTables, now = Date.now()): DashboardSn
   const followUpsByContact = groupBy(source.follow_ups, "contact_id");
   const profilesByContact = new Map(source.lead_profiles.map(profile => [profile.contact_id, profile]));
   const appointmentsByContact = groupBy(appointments, "contactId");
+  const sourceAppointmentsByContact = groupBy(source.appointments, "contact_id");
   const contacts = source.contacts.map(c => {
     const id = String(c.id);
     const conversations = (conversationsByContact.get(id) ?? []).sort((a,b) => Number(b.is_active === true) - Number(a.is_active === true) || time(b.last_message_at) - time(a.last_message_at));
@@ -35,13 +36,17 @@ export function mapSnapshot(source: SourceTables, now = Date.now()): DashboardSn
     const storedProfile = profilesByContact.get(id) ?? {};
     const extra = object(storedProfile.extra);
     const zones = Array.isArray(storedProfile.preferred_zones) ? storedProfile.preferred_zones : [];
-    const profile: Row = { ...extra, district: text(extra.district) ?? text(zones[0]), budgetMax: num(extra.budgetMax) ?? num(storedProfile.budget_max), bedrooms: num(extra.bedrooms) ?? num(storedProfile.bedrooms), notes: text(extra.notes) ?? text(extra.qualificationNote) ?? text(current?.summary) };
+    const profile: Row = { ...extra, district: text(extra.district) ?? text(zones[0]), budgetMax: num(extra.budgetMax) ?? num(storedProfile.budget_max), bedrooms: num(extra.bedrooms) ?? num(storedProfile.bedrooms), savings: num(storedProfile.savings) ?? num(extra.savings), notes: text(extra.notes) ?? text(extra.qualificationNote) ?? text(current?.summary) };
     const followUps: FollowUp[] = (followUpsByContact.get(id) ?? []).map(f => ({ id: String(f.id), contactId:id, dueAt:String(f.scheduled_for), status:f.status as FollowUp["status"], note:text(f.reason), createdAt:String(f.created_at) })).sort((a,b) => time(a.dueAt) - time(b.dueAt));
     const lastInboundAt = messages.filter(m => m.role === "human").at(-1)?.createdAt ?? null;
     const lastOutboundAt = messages.filter(m => m.role !== "human").at(-1)?.createdAt ?? null;
     if (c.agent !== "sales" && c.agent !== "housing") throw new Error("Agente de origen no reconocido; no se asignará un agente por defecto.");
     const sourceStage = text(current?.stage) ?? "unknown";
-    const contact: ContactListItem = { id, agent:c.agent, phone:text(c.phone_number) ?? text(c.whatsapp_id) ?? "Sin teléfono", username:text(extra.username), name:text(c.name), email:text(c.email), stage:sourceStages[sourceStage] ?? "unknown", sourceStage, intentScore:num(extra.intentScore), profile, lastInboundAt, lastOutboundAt, nextFollowUpAt:followUps.find(f => f.status === "pending")?.dueAt ?? null, sessionOpen:Boolean(lastInboundAt && now >= time(lastInboundAt) && now - time(lastInboundAt) < 86400000), assignedTo:text(extra.assignedTo), createdAt:String(c.created_at), updatedAt:String(c.updated_at), lastMessagePreview:messages.at(-1)?.content ?? "Sin mensajes registrados", conversationCount:conversations.length, messageCount:messages.length };
+    // The backend uses appointment_requested for both requests and confirmations.
+    // Only a persisted, dated visit in the current conversation proves a booking.
+    const confirmedVisit = current && (sourceAppointmentsByContact.get(id) ?? []).some(a => a.conversation_id === current.id && a.kind === "visit" && a.status === "confirmed" && time(a.requested_for) > 0);
+    const stage = sourceStage === "appointment_requested" && confirmedVisit ? "visit_scheduled" : sourceStages[sourceStage] ?? "unknown";
+    const contact: ContactListItem = { id, agent:c.agent, phone:text(c.phone_number) ?? text(c.whatsapp_id) ?? "Sin teléfono", username:text(extra.username), name:text(c.name), email:text(c.email), stage, sourceStage, intentScore:num(c.intent_score) ?? num(extra.intentScore), profile, lastInboundAt, lastOutboundAt, nextFollowUpAt:followUps.find(f => f.status === "pending")?.dueAt ?? null, sessionOpen:Boolean(lastInboundAt && now >= time(lastInboundAt) && now - time(lastInboundAt) < 86400000), assignedTo:text(extra.assignedTo), createdAt:String(c.created_at), updatedAt:String(c.updated_at), lastMessagePreview:messages.at(-1)?.content ?? "Sin mensajes registrados", conversationCount:conversations.length, messageCount:messages.length };
     details.set(id, { contact, messages, followUps, appointments:appointmentsByContact.get(id) ?? [] });
     return contact;
   });
@@ -49,13 +54,16 @@ export function mapSnapshot(source: SourceTables, now = Date.now()): DashboardSn
 }
 
 const columns: Record<keyof SourceTables, string> = {
-  contacts:"id,agent,whatsapp_id,phone_number,name,email,created_at,updated_at",
+  contacts:"id,agent,whatsapp_id,phone_number,name,email,created_at,updated_at,intent_score",
   conversations:"id,contact_id,stage,summary,is_active,last_message_at",
   messages:"id,conversation_id,direction,message_type,body,kapso_message_id,created_at",
-  lead_profiles:"contact_id,extra,preferred_zones,budget_max,bedrooms",
+  lead_profiles:"contact_id,extra,preferred_zones,budget_max,bedrooms,savings",
   follow_ups:"id,contact_id,scheduled_for,status,reason,created_at",
-  appointments:"id,contact_id,kind,requested_for,status,notes",
+  appointments:"id,contact_id,conversation_id,kind,requested_for,status,notes",
 };
+// Migration 20260910233000 is optional for reading older databases. Never hide
+// permission errors, missing tables, or unrelated missing columns as schema drift.
+const optionalColumns: Partial<Record<keyof SourceTables, string>> = { contacts: "intent_score", lead_profiles: "savings" };
 export function createSnapshotReader(url: string, key: string, fetcher?: typeof fetch) {
   const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false }, ...(fetcher ? { global: { fetch: fetcher } } : {}) });
   let pending: Promise<DashboardSnapshot> | undefined;
@@ -63,9 +71,17 @@ export function createSnapshotReader(url: string, key: string, fetcher?: typeof 
   let expires = 0;
   const readTable = async (table: keyof SourceTables): Promise<Row[]> => {
     const rows: Row[] = [];
+    let selection = columns[table];
+    const readPage = (offset: number) => client.from(table).select(selection).order(table === "lead_profiles" ? "contact_id" : "id").range(offset, offset + 499);
     for (let offset = 0; offset < 100000; offset += 500) {
-      const { data, error } = await client.from(table).select(columns[table]).order(table === "lead_profiles" ? "contact_id" : "id").range(offset, offset + 499);
+      let { data, error } = await readPage(offset);
+      const optional = optionalColumns[table];
+      if (error && optional && selection.split(",").includes(optional) && ["42703", "PGRST204"].includes(error.code) && error.message.includes(table) && error.message.includes(optional)) {
+        selection = selection.split(",").filter(column => column !== optional).join(",");
+        ({ data, error } = await readPage(offset));
+      }
       if (error) throw new Error(`No se pudo leer ${table} (${error.code}).`);
+      if (!data) throw new Error(`No se pudo leer ${table} (EMPTY_RESPONSE).`);
       rows.push(...data as unknown as Row[]);
       if (data.length < 500) return rows;
     }

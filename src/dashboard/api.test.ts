@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { getContact, getStats, listContacts, patchContact, reply } from "./api";
+import { allowsLocalDemo, getContact, getStats, listContacts, patchContact, reply } from "./api";
+
+test("missing production config cannot enable the local demo", () => {
+  expect(allowsLocalDemo("mensajito-dashboard.vercel.app")).toBe(false);
+  expect(allowsLocalDemo("localhost.evil.example")).toBe(false);
+  expect(allowsLocalDemo("localhost")).toBe(true);
+  expect(allowsLocalDemo("127.0.0.1")).toBe(true);
+});
 
 describe("dashboard mock contract", () => {
   test("filters contacts by agent and follow-up need", async () => {
