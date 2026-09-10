@@ -38,6 +38,16 @@ sqlite.exec(`
     idempotency_key TEXT PRIMARY KEY,
     created_at TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS appointments (
+    id TEXT PRIMARY KEY,
+    contact_id TEXT NOT NULL,
+    conversation_id TEXT,
+    kind TEXT NOT NULL DEFAULT 'visit',
+    requested_for TEXT,
+    status TEXT NOT NULL DEFAULT 'requested',
+    notes TEXT,
+    created_at TEXT NOT NULL
+  );
 `);
 
 function uuid() {
@@ -224,6 +234,63 @@ export async function recentMessages(
     kapsoId: row.kapso_id,
     createdAt: row.created_at,
   }));
+}
+
+export async function requestVisit(input: {
+  contactId: string;
+  conversationId: string;
+  projectName?: string;
+  preferredAt?: string | null;
+  preferredLabel?: string;
+  notes?: string;
+  status?: "requested" | "confirmed";
+}): Promise<{ id: string; status: string; requestedFor: string | null }> {
+  const notes = [input.projectName && `Proyecto: ${input.projectName}`, input.preferredLabel, input.notes]
+    .filter(Boolean)
+    .join(" · ");
+  const status = input.status ?? (input.preferredAt ? "confirmed" : "requested");
+  const existing = sqlite
+    .query<{ id: string }, [string]>(
+      `SELECT id FROM appointments WHERE contact_id = ? AND status IN ('requested', 'confirmed') ORDER BY created_at DESC LIMIT 1`,
+    )
+    .get(input.contactId);
+
+  const id = existing?.id ?? uuid();
+  if (existing) {
+    sqlite
+      .query(
+        `UPDATE appointments SET conversation_id = ?, requested_for = ?, status = ?, notes = ? WHERE id = ?`,
+      )
+      .run(input.conversationId, input.preferredAt ?? null, status, notes || null, id);
+  } else {
+    sqlite
+      .query(
+        `INSERT INTO appointments (id, contact_id, conversation_id, kind, requested_for, status, notes, created_at)
+         VALUES (?, ?, ?, 'visit', ?, ?, ?, ?)`,
+      )
+      .run(id, input.contactId, input.conversationId, input.preferredAt ?? null, status, notes || null, new Date().toISOString());
+  }
+
+  const contact = await getContact(input.contactId);
+  const profile = JSON.parse(contact.profileJson || "{}") as Record<string, unknown>;
+  sqlite
+    .query(`UPDATE contacts SET profile_json = ? WHERE id = ?`)
+    .run(
+      JSON.stringify({
+        ...profile,
+        visitRequested: true,
+        visitBooked: status === "confirmed",
+        visitAt: input.preferredAt ?? profile.visitAt,
+        visitPreference: input.preferredLabel ?? profile.visitPreference,
+        projectInterest: input.projectName ?? profile.projectInterest,
+        intentScore: 5,
+        qualified: true,
+        qualificationNote: "Pidió o confirmó visita",
+      }),
+      input.contactId,
+    );
+
+  return { id, status, requestedFor: input.preferredAt ?? null };
 }
 
 export async function claimIdempotencyKey(key: string): Promise<boolean> {
