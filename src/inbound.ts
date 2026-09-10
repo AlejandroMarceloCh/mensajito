@@ -27,6 +27,7 @@ type KapsoMessage = {
     direction?: string;
     content?: string;
     phone_number?: string;
+    phone_number_id?: string;
   };
 };
 
@@ -34,6 +35,7 @@ type KapsoConversation = {
   id?: string;
   contact_name?: string;
   phone_number?: string;
+  phone_number_id?: string;
   username?: string;
 };
 
@@ -68,20 +70,47 @@ function parseOne(item: KapsoEvent): InboundMessage | null {
     return null;
   }
 
-  const phoneNumberId = item.phone_number_id;
-  if (!phoneNumberId) return null;
+  const phoneNumberId =
+    item.phone_number_id ||
+    item.conversation?.phone_number_id ||
+    message.kapso?.phone_number_id;
+  if (!phoneNumberId) {
+    console.log(JSON.stringify({ msg: "inbound_skipped", reason: "no_phone_number_id" }));
+    return null;
+  }
 
   const agent = agentForPhoneNumberId(phoneNumberId);
-  if (!agent) return null;
+  if (!agent) {
+    console.log(
+      JSON.stringify({
+        msg: "inbound_skipped",
+        reason: "unknown_phone_number_id",
+        phoneNumberId,
+      }),
+    );
+    return null;
+  }
 
   const userPhone =
     message.from ||
     item.conversation?.phone_number ||
     message.kapso?.phone_number;
-  if (!userPhone) return null;
+  if (!userPhone) {
+    console.log(JSON.stringify({ msg: "inbound_skipped", reason: "no_user_phone" }));
+    return null;
+  }
 
   const text = extractText(message);
-  if (!text) return null;
+  if (!text) {
+    console.log(
+      JSON.stringify({
+        msg: "inbound_skipped",
+        reason: "no_text",
+        type: message.type,
+      }),
+    );
+    return null;
+  }
 
   return {
     agent,

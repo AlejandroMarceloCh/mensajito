@@ -13,6 +13,17 @@ export async function handleWhatsAppBody(
   }
 
   const events = extractInboundEvents(body);
+  console.log(
+    JSON.stringify({
+      msg: "webhook_received",
+      eventCount: events.length,
+      agent: events[0]?.agent,
+    }),
+  );
+  if (events.length === 0) {
+    console.log(JSON.stringify({ msg: "webhook_no_inbound_events" }));
+    return;
+  }
   for (const event of events) {
     await handleInbound(event);
   }
@@ -39,23 +50,44 @@ async function handleInbound(event: InboundMessage): Promise<void> {
     kapsoId: event.messageId,
   });
 
-  const reply = await runAgent({
-    agent: event.agent,
-    contact: named,
-    userText: event.text,
-  });
+  let reply: string;
+  try {
+    reply = await runAgent({
+      agent: event.agent,
+      contact: named,
+      userText: event.text,
+    });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        msg: "agent_failed",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+    reply =
+      "Perdón, tuve un problema técnico. ¿Me escribes de nuevo en un minuto?";
+  }
 
-  const kapsoId = await sendWhatsAppText({
-    phoneNumberId: phoneNumberIdForAgent(event.agent),
-    to: event.userPhone,
-    body: reply,
-  });
+  try {
+    const kapsoId = await sendWhatsAppText({
+      phoneNumberId: phoneNumberIdForAgent(event.agent),
+      to: event.userPhone.replace(/\D/g, ""),
+      body: reply,
+    });
 
-  await insertMessage({
-    contactId: named.id,
-    conversationId: named.conversationId,
-    role: "ai",
-    content: reply,
-    kapsoId,
-  });
+    await insertMessage({
+      contactId: named.id,
+      conversationId: named.conversationId,
+      role: "ai",
+      content: reply,
+      kapsoId,
+    });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        msg: "whatsapp_send_failed",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
 }

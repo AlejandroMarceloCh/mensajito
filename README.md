@@ -4,6 +4,8 @@ Plan de trabajo por persona (endpoints, estilo, frentes en paralelo): **[docs/pl
 
 Dos agentes de WhatsApp en un mismo webhook: uno comercial (atiende, califica y agenda visitas) y otro de orientación para Fondo MIVIVIENDA / Techo Propio. Cada agente usa su propio número. El enrutado es por `phone_number_id` de Kapso, como en el [curso receptionist-ai](https://github.com/crafter-station/receptionist-ai), con LangChain para herramientas, historial y conocimiento.
 
+Orden de implementación (el producto no cambia): **primero Tami**, después Milo. El servidor puede arrancar solo con el número de ventas.
+
 ## Agentes
 
 | Número | Variable | Agente | Qué hace |
@@ -31,11 +33,11 @@ bun install
 cp .env.example .env
 ```
 
-Completa Kapso, los dos `phone_number_id`, OpenAI y las claves de Supabase (`SUPABASE_URL` + `SUPABASE_SECRET_KEY`).
+Completa Kapso, ambos `phone_number_id` cuando toque cada agente, OpenAI y las claves de Supabase (`SUPABASE_URL` + `SUPABASE_SECRET_KEY`). Para el avance actual basta `SALES_PHONE_NUMBER_ID`.
 
 Aplica las migraciones de `supabase/migrations/` en el SQL editor de Supabase (primero `...initial_lead_memory.sql`, luego `...agent_and_projects.sql`).
 
-En Kapso conecta **dos** números y apunta ambos webhooks (o un webhook de proyecto) a:
+En Kapso conecta **dos** números y crea un webhook **por cada phone number** (no uses solo un webhook de proyecto: esos no reciben `whatsapp.message.received`). Mientras avanzamos Tami, configura primero el de ventas. Apunta ambos a:
 
 `https://<tu-dominio>/webhooks/whatsapp`
 

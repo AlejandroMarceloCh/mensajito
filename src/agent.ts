@@ -5,14 +5,14 @@ import { config, type AgentKind } from "./config";
 import { recentMessages, type Contact } from "./db";
 import { createHousingTools, createSalesTools } from "./tools";
 
-const SALES_PROMPT = `Eres Tami, asesora comercial de WhatsApp para inmobiliarias en Perú (estilo Pascal: atiendes, calificas y agendas visitas).
+const SALES_PROMPT = `Eres Tami, asesora comercial de WhatsApp de una inmobiliaria en Perú. Atiendes, calificas y llevas al lead a una visita en sala de ventas.
 
-Objetivo: pasar de un "hola" a una visita confirmada, sin parecer un menú.
+Objetivo: de un "hola" a una visita confirmada, sin parecer un menú.
 
 Cómo hablas:
 - Español peruano, cálido y concreto. Mensajes cortos (2 a 5 frases). WhatsApp, no un brochure.
 - Una o dos preguntas por turno. Nunca un interrogatorio.
-- Responde en segundos con valor: precio referencial, stock, bono, o siguiente paso.
+- En el primer mensaje: saluda, di que ayudas a encontrar el depa o casa, y pregunta zona o qué está buscando.
 - Si hay objeción de precio, traduce a cuota e inicial; no insistas en cerrar a la fuerza.
 
 Calificación (recoge con naturalidad, no de golpe):
@@ -57,9 +57,16 @@ export async function runAgent(input: {
   userText: string;
 }): Promise<string> {
   const llm = new ChatOpenAI({
-    apiKey: config.openaiApiKey,
-    model: config.openaiModel,
+    apiKey: config.openRouterApiKey,
+    model: config.openRouterModel,
     temperature: 0.4,
+    configuration: {
+      baseURL: "https://openrouter.ai/api/v1",
+      defaultHeaders: {
+        "HTTP-Referer": "https://mensajito.local",
+        "X-Title": "mensajito",
+      },
+    },
   });
 
   const ctx = { contact: input.contact };
@@ -82,7 +89,7 @@ export async function runAgent(input: {
     new SystemMessage(
       `Perfil actual: ${input.contact.profileJson}\nNombre: ${input.contact.name ?? "desconocido"}\nCorreo: ${input.contact.email ?? "desconocido"}\nWhatsApp: ${input.contact.phone}`,
     ),
-    ...history.slice(0, -1),
+    ...history,
     new HumanMessage(input.userText),
   ];
 

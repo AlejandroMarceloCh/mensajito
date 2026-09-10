@@ -23,6 +23,13 @@ export async function sendWhatsAppText(input: {
       body: chunk,
     });
     lastId = response.messages?.[0]?.id;
+    console.log(
+      JSON.stringify({
+        msg: "whatsapp_sent",
+        to: input.to,
+        id: lastId,
+      }),
+    );
   }
 
   return lastId;

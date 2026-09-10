@@ -1,25 +1,38 @@
 import type { AgentKind } from "./config";
 import { getSupabase } from "./lib/supabase";
+import * as sqliteDb from "./db-sqlite";
+import type { Contact, StoredMessage } from "./types";
 
-export type Contact = {
-  id: string;
-  conversationId: string;
-  agent: AgentKind;
-  phone: string;
-  username: string | null;
-  name: string | null;
-  email: string | null;
-  profileJson: string;
-};
+export type { Contact, StoredMessage };
 
-export type StoredMessage = {
-  id: string;
-  contactId: string;
-  role: "human" | "ai" | "advisor";
-  content: string;
-  kapsoId: string | null;
-  createdAt: string;
-};
+let backend: "supabase" | "sqlite" | null = null;
+
+function missingTable(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return (
+    error.code === "PGRST205" ||
+    Boolean(error.message?.includes("Could not find the table"))
+  );
+}
+
+async function useSqlite(): Promise<boolean> {
+  if (backend === "sqlite") return true;
+  if (backend === "supabase") return false;
+  const { error } = await getSupabase().from("contacts").select("id").limit(1);
+  if (missingTable(error)) {
+    backend = "sqlite";
+    console.log(
+      JSON.stringify({
+        msg: "db_fallback_sqlite",
+        reason: "supabase_sin_tablas_aplica_migraciones",
+      }),
+    );
+    return true;
+  }
+  if (error) throw error;
+  backend = "supabase";
+  return false;
+}
 
 type ContactRow = {
   id: string;
@@ -45,6 +58,8 @@ export async function upsertContact(input: {
   username?: string | null;
   kapsoConversationId?: string;
 }): Promise<Contact> {
+  if (await useSqlite()) return sqliteDb.upsertContact(input);
+
   const supabase = getSupabase();
 
   const { data: contact, error: contactError } = await supabase
@@ -61,31 +76,21 @@ export async function upsertContact(input: {
     .single();
   if (contactError) throw contactError;
 
-  const kapsoConversationId =
-    input.kapsoConversationId ?? `${input.agent}:${input.phone}`;
-
-  const { data: conversation, error: conversationError } = await supabase
-    .from("conversations")
-    .upsert(
-      {
-        contact_id: contact.id,
-        kapso_conversation_id: kapsoConversationId,
-        last_message_at: new Date().toISOString(),
-      },
-      { onConflict: "kapso_conversation_id" },
-    )
-    .select("id, contact_id")
-    .single();
-  if (conversationError) throw conversationError;
+  const conversation = await ensureConversation(
+    contact.id as string,
+    input.kapsoConversationId ?? `${input.agent}:${input.phone}`,
+  );
 
   if (input.username) {
     await mergeProfile(contact.id, { username: input.username });
   }
 
-  return hydrate(contact as ContactRow, conversation as ConversationRow);
+  return hydrate(contact as ContactRow, conversation);
 }
 
 export async function getContact(id: string): Promise<Contact> {
+  if (await useSqlite()) return sqliteDb.getContact(id);
+
   const supabase = getSupabase();
   const { data: contact, error } = await supabase
     .from("contacts")
@@ -110,6 +115,8 @@ export async function updateContactProfile(
   id: string,
   patch: Record<string, unknown>,
 ): Promise<Contact> {
+  if (await useSqlite()) return sqliteDb.updateContactProfile(id, patch);
+
   const contact = await getContact(id);
   const current = parseProfile(contact.profileJson);
   const next = { ...current, ...stripUndefined(patch) };
@@ -144,6 +151,8 @@ export async function insertMessage(input: {
   content: string;
   kapsoId?: string | null;
 }): Promise<void> {
+  if (await useSqlite()) return sqliteDb.insertMessage(input);
+
   const supabase = getSupabase();
   const { error } = await supabase.from("messages").upsert(
     {
@@ -157,21 +166,18 @@ export async function insertMessage(input: {
   );
   if (error) throw error;
 
-  const stamp =
-    input.role === "human"
-      ? { last_inbound_at: undefined }
-      : {};
   await supabase
     .from("conversations")
     .update({ last_message_at: new Date().toISOString() })
     .eq("id", input.conversationId);
-  void stamp;
 }
 
 export async function recentMessages(
   contactId: string,
   limit = 16,
 ): Promise<StoredMessage[]> {
+  if (await useSqlite()) return sqliteDb.recentMessages(contactId, limit);
+
   const contact = await getContact(contactId);
   const supabase = getSupabase();
   const { data, error } = await supabase
@@ -195,6 +201,8 @@ export async function recentMessages(
 }
 
 export async function claimIdempotencyKey(key: string, eventName = "whatsapp.message.received"): Promise<boolean> {
+  if (await useSqlite()) return sqliteDb.claimIdempotencyKey(key);
+
   const supabase = getSupabase();
   const { data: existing, error: readError } = await supabase
     .from("processed_events")
@@ -213,6 +221,60 @@ export async function claimIdempotencyKey(key: string, eventName = "whatsapp.mes
     throw error;
   }
   return true;
+}
+
+async function ensureConversation(
+  contactId: string,
+  kapsoConversationId: string,
+): Promise<ConversationRow> {
+  const supabase = getSupabase();
+  const now = new Date().toISOString();
+
+  const { data: byKapso, error: byKapsoError } = await supabase
+    .from("conversations")
+    .select("id, contact_id")
+    .eq("kapso_conversation_id", kapsoConversationId)
+    .maybeSingle();
+  if (byKapsoError) throw byKapsoError;
+
+  if (byKapso) {
+    const { error } = await supabase
+      .from("conversations")
+      .update({ last_message_at: now, is_active: true })
+      .eq("id", byKapso.id);
+    if (error) throw error;
+    return byKapso as ConversationRow;
+  }
+
+  const { data: active, error: activeError } = await supabase
+    .from("conversations")
+    .select("id, contact_id")
+    .eq("contact_id", contactId)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (activeError) throw activeError;
+
+  if (active) {
+    const { error } = await supabase
+      .from("conversations")
+      .update({ last_message_at: now })
+      .eq("id", active.id);
+    if (error) throw error;
+    return active as ConversationRow;
+  }
+
+  const { data: created, error: createError } = await supabase
+    .from("conversations")
+    .insert({
+      contact_id: contactId,
+      kapso_conversation_id: kapsoConversationId,
+      last_message_at: now,
+      is_active: true,
+    })
+    .select("id, contact_id")
+    .single();
+  if (createError) throw createError;
+  return created as ConversationRow;
 }
 
 async function mergeProfile(contactId: string, extra: Record<string, unknown>) {

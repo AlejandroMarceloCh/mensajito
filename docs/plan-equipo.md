@@ -612,13 +612,24 @@ CAL_EVENT_TYPE_ID=
 
 ## Orden temporal (aunque los frentes sean paralelos)
 
+El alcance no cambia (Tami + Milo + CRM + deploy). Solo el **orden de avance**:
+
 ```
-Día 1     A: migración + types.ts + db stubs     F: cuentas
-Día 1–3   C: UI con mock                         B: webhook + prompts (DB fake si A no listo)
-Día 3     Integración A+B: mensajes reales en CRM
-Día 4     D: worker                              C: conectar API real
-Día 5     E: Docker local                        F: EC2 + DNS
-Día 6     Corte de webhook a prod + prueba de los 2 números
+Ahora      B: Tami (ventas) operativa de punta a punta (webhook, tools, catálogo, visita)
+Luego      B: Milo (Mi Vivienda) en el segundo número
+En paralelo C: dashboard con mock; A: Supabase
+Después    D: follow-up; E/F: EC2 + DNS + prueba de los 2 números
+```
+
+Detalle por día (igual que antes, con ventas primero):
+
+```
+Día 1     A: migración + types.ts + db stubs     F: cuentas (empezar por el número de ventas)
+Día 1–3   C: UI con mock                         B: webhook + Tami (DB fake si A no listo)
+Día 3     Integración A+B: mensajes reales de ventas en CRM
+Día 4     B: Milo en el segundo número            D: worker
+Día 5     C: API real                             E: Docker local
+Día 6     F: EC2 + DNS + corte de webhook a prod + prueba de los 2 números
 ```
 
 Si C termina antes: mergean mock detrás de flag; no bloquean a B.

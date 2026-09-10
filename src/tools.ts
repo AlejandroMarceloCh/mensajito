@@ -10,24 +10,24 @@ export type ToolContext = {
   contact: Contact;
 };
 
-const profilePatch = z.object({
-  name: z.string().min(2).optional(),
-  email: z.string().email().optional(),
-  district: z.string().optional(),
-  city: z.string().optional(),
-  bedrooms: z.number().int().min(1).max(5).optional(),
-  budgetMin: z.number().optional(),
-  budgetMax: z.number().optional(),
-  monthlyIncome: z.number().optional(),
-  monthlyDebts: z.number().optional(),
-  downPayment: z.number().optional(),
-  purchaseStage: z.string().optional(),
-  projectInterest: z.string().optional(),
-  hasProperty: z.boolean().optional(),
-  programInterest: z.enum(["mivivienda", "techo_propio", "ambos"]).optional(),
-  visitPreference: z.string().optional(),
-  objections: z.string().optional(),
-  employmentType: z.string().optional(),
+  const profilePatch = z.object({
+  name: z.string().min(2).nullish(),
+  email: z.string().email().nullish(),
+  district: z.string().nullish(),
+  city: z.string().nullish(),
+  bedrooms: z.number().int().min(1).max(5).nullish(),
+  budgetMin: z.number().nullish(),
+  budgetMax: z.number().nullish(),
+  monthlyIncome: z.number().nullish(),
+  monthlyDebts: z.number().nullish(),
+  downPayment: z.number().nullish(),
+  purchaseStage: z.string().nullish(),
+  projectInterest: z.string().nullish(),
+  hasProperty: z.boolean().nullish(),
+  programInterest: z.enum(["mivivienda", "techo_propio", "ambos"]).nullish(),
+  visitPreference: z.string().nullish(),
+  objections: z.string().nullish(),
+  employmentType: z.string().nullish(),
 });
 
 export function createSharedTools(ctx: ToolContext) {
@@ -37,7 +37,7 @@ export function createSharedTools(ctx: ToolContext) {
       "Guarda o actualiza datos del lead: nombre, correo, distrito, presupuesto, ingresos, deudas, inicial, etapa de compra, objeciones.",
     schema: profilePatch,
     func: async (input) => {
-      const contact = updateContactProfile(ctx.contact.id, input);
+      const contact = await updateContactProfile(ctx.contact.id, input);
       ctx.contact = contact;
       return `Perfil actualizado: ${contact.profileJson}`;
     },
@@ -48,12 +48,12 @@ export function createSharedTools(ctx: ToolContext) {
     description:
       "Busca proyectos del catálogo por distrito, ciudad, dormitorios, precio máximo, cuota máxima o programa (mivivienda | techo_propio).",
     schema: z.object({
-      district: z.string().optional(),
-      city: z.string().optional(),
-      bedrooms: z.number().int().optional(),
-      maxPrice: z.number().optional(),
-      maxMonthly: z.number().optional(),
-      program: z.enum(["mivivienda", "techo_propio"]).optional(),
+      district: z.string().nullish(),
+      city: z.string().nullish(),
+      bedrooms: z.number().int().nullish(),
+      maxPrice: z.number().nullish(),
+      maxMonthly: z.number().nullish(),
+      program: z.enum(["mivivienda", "techo_propio"]).nullish(),
     }),
     func: async (input) => {
       const matches = searchProjects(input);
@@ -80,7 +80,7 @@ export function createSalesTools(ctx: ToolContext) {
       note: z.string(),
     }),
     func: async (input) => {
-      updateContactProfile(ctx.contact.id, {
+      await updateContactProfile(ctx.contact.id, {
         qualified: input.qualified,
         intentScore: input.intentScore,
         qualificationNote: input.note,
@@ -149,7 +149,7 @@ export function createSalesTools(ctx: ToolContext) {
           });
           const json = await response.json();
           if (!response.ok) return `No se pudo agendar: ${JSON.stringify(json)}`;
-          updateContactProfile(ctx.contact.id, {
+          await updateContactProfile(ctx.contact.id, {
             visitBooked: true,
             visitAt: input.startDate,
             qualified: true,
@@ -194,7 +194,7 @@ export function createHousingTools(ctx: ToolContext) {
         monthlyIncome: input.monthlyIncome,
         maxPrice: estimate.estimatedPrice,
       });
-      updateContactProfile(ctx.contact.id, {
+      await updateContactProfile(ctx.contact.id, {
         monthlyIncome: input.monthlyIncome,
         monthlyDebts: input.monthlyDebts,
         downPayment: input.downPayment,

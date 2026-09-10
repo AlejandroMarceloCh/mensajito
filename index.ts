@@ -7,11 +7,18 @@ async function kapsoWebhook(req: Request): Promise<Response> {
   const signature = req.headers.get("x-webhook-signature");
 
   if (!verifyWebhookSignature(rawBody, signature, config.webhookSecret)) {
+    console.log(
+      JSON.stringify({
+        msg: "webhook_rejected",
+        reason: "invalid_signature",
+      }),
+    );
     return new Response("Invalid signature", { status: 401 });
   }
 
   const eventName = req.headers.get("x-webhook-event");
   if (eventName && eventName !== "whatsapp.message.received") {
+    console.log(JSON.stringify({ msg: "webhook_ignored", eventName }));
     return new Response("OK");
   }
 
@@ -39,7 +46,13 @@ Bun.serve({
   port: config.port,
   routes: {
     "/": () => new Response("mensajito ok"),
-    "/health": () => Response.json({ ok: true }),
+    "/health": () =>
+      Response.json({
+        ok: true,
+        activeAgent: "sales",
+        salesPhoneNumberId: config.salesPhoneNumberId,
+        housingConfigured: Boolean(config.housingPhoneNumberId),
+      }),
     "/webhooks/whatsapp": { POST: kapsoWebhook },
     "/webhooks/kapso": { POST: kapsoWebhook },
   },
@@ -49,7 +62,8 @@ console.log(
   JSON.stringify({
     msg: "mensajito_listening",
     port: config.port,
+    activeAgent: "sales",
     salesPhoneNumberId: config.salesPhoneNumberId,
-    housingPhoneNumberId: config.housingPhoneNumberId,
+    housingConfigured: Boolean(config.housingPhoneNumberId),
   }),
 );
