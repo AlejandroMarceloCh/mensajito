@@ -1,0 +1,15 @@
+{
+  "name": "receptionist-ai",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "dependencies": {
+    "@kapso/whatsapp-cloud-api": "^0.3.0"
+  }
+}
