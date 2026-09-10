@@ -1,9 +1,10 @@
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
-import { formatProject, inferProgram, searchProjects } from "./catalog";
-import { updateContactProfile, type Contact } from "./db";
+import { evaluateAffordability, formatRecommendation, inferProgram, recommendProjects } from "./catalog";
+import { requestVisit, updateContactProfile, type Contact } from "./db";
 import { estimatePaymentCapacity } from "./finance";
 import { searchKnowledge } from "./knowledge";
+import { parseVisitSlot } from "./visit";
 import { config } from "./config";
 
 export type ToolContext = {
@@ -21,6 +22,8 @@ export type ToolContext = {
   monthlyIncome: z.number().nullish(),
   monthlyDebts: z.number().nullish(),
   downPayment: z.number().nullish(),
+  savings: z.number().nullish(),
+  capacityFits: z.boolean().nullish(),
   purchaseStage: z.string().nullish(),
   projectInterest: z.string().nullish(),
   hasProperty: z.boolean().nullish(),
@@ -34,7 +37,7 @@ export function createSharedTools(ctx: ToolContext) {
   const saveProfile = new DynamicStructuredTool({
     name: "guardar_perfil",
     description:
-      "Guarda o actualiza datos del lead: nombre, correo, distrito, presupuesto, ingresos, deudas, inicial, etapa de compra, objeciones.",
+      "Guarda datos del lead: nombre, distrito, dormitorios, ahorro (savings), cuota inicial (downPayment), si le calza (capacityFits), proyecto de interés, visita.",
     schema: profilePatch,
     func: async (input) => {
       const contact = await updateContactProfile(ctx.contact.id, input);
@@ -46,8 +49,9 @@ export function createSharedTools(ctx: ToolContext) {
   const findProjects = new DynamicStructuredTool({
     name: "buscar_proyectos",
     description:
-      "Busca proyectos del catálogo por distrito, ciudad, dormitorios, precio máximo, cuota máxima o programa (mivivienda | techo_propio).",
+      "Busca proyectos por nombre (ej. Sol de Carabayllo), distrito o dormitorios. Si el cliente nombró un proyecto, pásalo en name. No esperes presupuesto.",
     schema: z.object({
+      name: z.string().nullish(),
       district: z.string().nullish(),
       city: z.string().nullish(),
       bedrooms: z.number().int().nullish(),
@@ -55,13 +59,7 @@ export function createSharedTools(ctx: ToolContext) {
       maxMonthly: z.number().nullish(),
       program: z.enum(["mivivienda", "techo_propio"]).nullish(),
     }),
-    func: async (input) => {
-      const matches = searchProjects(input);
-      if (matches.length === 0) {
-        return "No hay proyectos del catálogo con esos filtros. Relaja distrito o presupuesto y vuelve a buscar.";
-      }
-      return matches.map(formatProject).join("\n\n");
-    },
+    func: async (input) => formatRecommendation(recommendProjects(input)),
   });
 
   return { saveProfile, findProjects };
@@ -73,7 +71,7 @@ export function createSalesTools(ctx: ToolContext) {
   const qualify = new DynamicStructuredTool({
     name: "marcar_calificacion",
     description:
-      "Actualiza si el lead está calificado y un puntaje de intención de 1 a 5, con una nota corta.",
+      "Actualiza el score de intención de compra (1–5, 5 = más probable de comprar) cada vez que el lead avance: 1 hola, 2 zona/proyecto, 3 tipología, 4 ahorro/inicial, 5 visita. No se lo digas al cliente.",
     schema: z.object({
       qualified: z.boolean(),
       intentScore: z.number().int().min(1).max(5),
@@ -89,7 +87,54 @@ export function createSalesTools(ctx: ToolContext) {
     },
   });
 
-  const tools = [saveProfile, findProjects, qualify];
+  const bookVisit = new DynamicStructuredTool({
+    name: "registrar_visita",
+    description:
+      "Registra la visita SOLO cuando ya cerró capacidad adquisitiva (ahorro, inicial y confirmó que se acomoda) o aceptó una alternativa. Pasa projectName y preferredSlot (sábado 11, domingo 4).",
+    schema: z.object({
+      projectName: z.string().nullish(),
+      preferredSlot: z.string().nullish(),
+      notes: z.string().nullish(),
+    }),
+    func: async (input) => {
+      const parsed = input.preferredSlot ? parseVisitSlot(input.preferredSlot) : null;
+      const appointment = await requestVisit({
+        contactId: ctx.contact.id,
+        conversationId: ctx.contact.conversationId,
+        projectName: input.projectName ?? undefined,
+        preferredAt: parsed?.iso,
+        preferredLabel: parsed?.label ?? input.preferredSlot ?? undefined,
+        notes: input.notes ?? undefined,
+        status: parsed ? "confirmed" : "requested",
+      });
+      return `Visita ${appointment.status} guardada en appointments (${appointment.id})${appointment.requestedFor ? ` · ${appointment.requestedFor}` : ""}. Confírmale el horario al cliente.`;
+    },
+  });
+
+  const capacity = new DynamicStructuredTool({
+    name: "evaluar_capacidad",
+    description:
+      "Evalúa si el ahorro y la cuota inicial calzan con el proyecto. Si no, propone alternativas más accesibles. Úsala antes de preguntar si se acomoda y antes de agendar.",
+    schema: z.object({
+      savings: z.number().nonnegative().nullish(),
+      downPayment: z.number().nonnegative().nullish(),
+      maxMonthly: z.number().positive().nullish(),
+      projectName: z.string().nullish(),
+      bedrooms: z.number().int().min(1).max(5).nullish(),
+    }),
+    func: async (input) => {
+      const result = evaluateAffordability(input);
+      const fits = result.includes("RESULTADO=CALZA");
+      await updateContactProfile(ctx.contact.id, {
+        savings: input.savings ?? undefined,
+        downPayment: input.downPayment ?? input.savings ?? undefined,
+        capacityFits: fits,
+      });
+      return result;
+    },
+  });
+
+  const tools = [saveProfile, findProjects, qualify, capacity, bookVisit];
 
   if (config.calApiKey && config.calEventTypeId) {
     tools.push(
@@ -149,6 +194,14 @@ export function createSalesTools(ctx: ToolContext) {
           });
           const json = await response.json();
           if (!response.ok) return `No se pudo agendar: ${JSON.stringify(json)}`;
+          await requestVisit({
+            contactId: ctx.contact.id,
+            conversationId: ctx.contact.conversationId,
+            preferredAt: input.startDate,
+            preferredLabel: input.startDate,
+            notes: input.notes,
+            status: "confirmed",
+          });
           await updateContactProfile(ctx.contact.id, {
             visitBooked: true,
             visitAt: input.startDate,

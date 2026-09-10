@@ -22,7 +22,7 @@ El de vivienda hace una **preprospectación** (no es calificación oficial del F
 - Bun + TypeScript
 - Kapso WhatsApp Cloud API ([firma HMAC del cuerpo crudo](https://docs.kapso.ai/docs/platform/webhooks/security))
 - LangChain (`ChatOpenAI` + tools)
-- Supabase (Postgres) para contactos, conversaciones, perfiles y follow-ups
+- Supabase (Postgres) es la **base principal**: contactos, mensajes, score, visitas, inventario. El CRM y el resto del producto leen de ahí.
 
 Cal.com es opcional, igual que en el recepcionista del curso.
 
@@ -35,7 +35,7 @@ cp .env.example .env
 
 Completa Kapso, ambos `phone_number_id` cuando toque cada agente, OpenAI y las claves de Supabase (`SUPABASE_URL` + `SUPABASE_SECRET_KEY`). Para el avance actual basta `SALES_PHONE_NUMBER_ID`.
 
-Aplica las migraciones de `supabase/migrations/` en el SQL editor de Supabase (primero `...initial_lead_memory.sql`, luego `...agent_and_projects.sql`).
+Aplica las migraciones de `supabase/migrations/` en orden (SQL editor o Management API). Sin esas tablas el servidor no arranca: no hay fallback a SQLite.
 
 En Kapso conecta **dos** números y crea un webhook **por cada phone number** (no uses solo un webhook de proyecto: esos no reciben `whatsapp.message.received`). Mientras avanzamos Tami, configura primero el de ventas. Apunta ambos a:
 
@@ -61,7 +61,9 @@ TEST_AGENT=housing bun run send:test
 
 ## Cómo ampliar el catálogo y el conocimiento
 
-- Proyectos: `src/catalog.ts`
+- Proyectos (agente): `src/catalog.ts`
+- Inventario (CRM): tablas `projects` y `project_units`
+- Leads para el CRM: vista `crm_leads` (`intent_score`, `stage`, `extra`, última visita)
 - Programas FMV: `src/knowledge.ts` (el tool `consultar_programas` busca ahí)
 - Prompts: `src/agent.ts`
 

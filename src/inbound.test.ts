@@ -9,7 +9,18 @@ import {
 import { verifyWebhookSignature } from "../src/crypto";
 import { extractInboundEvents } from "../src/inbound";
 import { estimatePaymentCapacity } from "../src/finance";
-import { formatProject, inferProgram, searchProjects } from "../src/catalog";
+import {
+  evaluateAffordability,
+  findProjectInText,
+  formatProject,
+  inferProgram,
+  projectStock,
+  recommendProjects,
+  searchProjects,
+} from "../src/catalog";
+import { parseVisitSlot } from "../src/visit";
+import { nextLeadScore, scoreLeadIntent } from "../src/score";
+import { requestVisit, upsertContact } from "../src/db-sqlite";
 import { searchKnowledge } from "../src/knowledge";
 import { createHousingTools, createSalesTools } from "../src/tools";
 import { splitMessage } from "../src/whatsapp";
@@ -184,6 +195,51 @@ describe("capacidad de pago y catálogo", () => {
     expect(matches.some((p) => p.id === "carabayllo-sol")).toBe(true);
   });
 
+  test("inventario: disponibles vs vendidos por tipología", () => {
+    const surco = searchProjects({ district: "Surco" })[0];
+    expect(surco?.units).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ bedrooms: 2, total: 45, sold: 28 }),
+        expect.objectContaining({ bedrooms: 3, total: 30, sold: 19 }),
+      ]),
+    );
+    expect(projectStock(surco!)).toEqual({ total: 75, sold: 47, available: 28 });
+    expect(formatProject(surco!)).toContain("17 disponibles de 45");
+  });
+
+  test("si nombran un proyecto, ancla a ese y no a otro distrito", () => {
+    expect(findProjectInText("Hola, me interesa Sol de Carabayllo")?.id).toBe("carabayllo-sol");
+    expect(findProjectInText("quiero info de Parques de Surco")?.id).toBe("surco-parques");
+    expect(findProjectInText("hola, busco un depa")).toBeUndefined();
+    const named = recommendProjects({ name: "Sol de Carabayllo" });
+    expect(named.matches[0]?.id).toBe("carabayllo-sol");
+    expect(named.alternatives).toEqual([]);
+  });
+
+  test("si no hay proyecto en el distrito, ofrece alternativas similares", () => {
+    const result = recommendProjects({ district: "Miraflores", bedrooms: 2 });
+    expect(result.matches).toEqual([]);
+    expect(result.requestedDistrict).toBe("Miraflores");
+    expect(result.alternatives.some((p) => p.id === "surco-parques" || p.id === "san-miguel-mar")).toBe(
+      true,
+    );
+  });
+
+  test("capacidad: inicial alcanza o sugiere alternativa", () => {
+    const fits = evaluateAffordability({
+      savings: 20_000,
+      downPayment: 20_000,
+      projectName: "Sol de Carabayllo",
+    });
+    expect(fits).toContain("RESULTADO=CALZA");
+    const short = evaluateAffordability({
+      savings: 15_000,
+      projectName: "Parques de Surco",
+    });
+    expect(short).toContain("RESULTADO=NO_CALZA");
+    expect(short).toContain("ALTERNATIVAS QUE SÍ SE ADAPTAN");
+  });
+
   test("infiere Techo Propio con ingreso bajo", () => {
     expect(inferProgram({ monthlyIncome: 2500, maxPrice: 120000 })).toBe("techo_propio");
     expect(inferProgram({ monthlyIncome: 5000 })).toBe("mivivienda");
@@ -216,10 +272,60 @@ describe("tools por agente", () => {
     }).map((t) => t.name);
 
     expect(salesNames).toContain("marcar_calificacion");
+    expect(salesNames).toContain("registrar_visita");
+    expect(salesNames).toContain("evaluar_capacidad");
     expect(salesNames).not.toContain("consultar_programas");
     expect(housingNames).toContain("consultar_programas");
     expect(housingNames).toContain("calcular_capacidad_pago");
     expect(housingNames).not.toContain("marcar_calificacion");
+  });
+});
+
+describe("score de intención", () => {
+  test("sube de 1 a 5 según señales de compra", () => {
+    expect(scoreLeadIntent({ profile: {}, userText: "hola" }).score).toBe(1);
+    expect(scoreLeadIntent({ profile: { district: "Surco" }, userText: "ok" }).score).toBe(2);
+    expect(
+      scoreLeadIntent({
+        profile: { projectInterest: "Sol de Carabayllo", bedrooms: 2 },
+        userText: "de 2 dormitorios",
+      }).score,
+    ).toBe(3);
+    expect(scoreLeadIntent({ profile: { savings: 20000 }, userText: "tengo 20 mil" }).score).toBe(4);
+    expect(scoreLeadIntent({ profile: { capacityFits: true }, userText: "sí me acomoda" }).score).toBe(4);
+    expect(scoreLeadIntent({ profile: {}, userText: "quiero agendar una visita" }).score).toBe(5);
+  });
+
+  test("no baja el score salvo rechazo", () => {
+    expect(nextLeadScore({ profile: { intentScore: 4 }, userText: "ok gracias" }).score).toBe(4);
+    expect(nextLeadScore({ profile: { intentScore: 4 }, userText: "ya no me interesa" }).score).toBe(1);
+  });
+});
+
+describe("visitas", () => {
+  test("parsea sábado 11am en horario de Lima", () => {
+    const slot = parseVisitSlot("me acomoda el sábado a las 11", new Date("2026-09-10T20:00:00.000Z"));
+    expect(slot?.label).toBe("sábado 11am");
+    expect(slot?.iso).toBe("2026-09-12T16:00:00.000Z");
+  });
+
+  test("registra appointment cuando el lead pide visita", async () => {
+    const contact = await upsertContact({
+      agent: "sales",
+      phone: "51900000042",
+      username: "test-visita",
+    });
+    const row = await requestVisit({
+      contactId: contact.id,
+      conversationId: contact.conversationId,
+      projectName: "Sol de Carabayllo",
+      preferredAt: "2026-09-12T16:00:00.000Z",
+      preferredLabel: "sábado 11am",
+      status: "confirmed",
+    });
+    expect(row.status).toBe("confirmed");
+    expect(row.requestedFor).toBe("2026-09-12T16:00:00.000Z");
+    expect(row.id).toBeTruthy();
   });
 });
 

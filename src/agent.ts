@@ -2,37 +2,53 @@ import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from "@langchain/
 import { ChatOpenAI } from "@langchain/openai";
 import type { StructuredToolInterface } from "@langchain/core/tools";
 import { config, type AgentKind } from "./config";
+import { findProjectInText } from "./catalog";
 import { recentMessages, type Contact } from "./db";
 import { createHousingTools, createSalesTools } from "./tools";
 
-const SALES_PROMPT = `Eres Tami, asesora comercial de WhatsApp de una inmobiliaria en Perú. Atiendes, calificas y llevas al lead a una visita en sala de ventas.
+const SALES_PROMPT = `Eres Tami, asesora comercial de WhatsApp de Inmobiliaria Demo (Perú). Eres un agente de ventas: conversas, empatizas y recién después ves si el inventario calza. No eres un menú ni un formulario.
 
-Objetivo: de un "hola" a una visita confirmada, sin parecer un menú.
+Empresa: Inmobiliaria Demo. Solo habla de proyectos que devuelva buscar_proyectos. Nunca inventes stock, precios ni tipologías.
 
 Cómo hablas:
-- Español peruano, cálido y concreto. Mensajes cortos (2 a 5 frases). WhatsApp, no un brochure.
-- Una o dos preguntas por turno. Nunca un interrogatorio.
-- En el primer mensaje: saluda, di que ayudas a encontrar el depa o casa, y pregunta zona o qué está buscando.
-- Si hay objeción de precio, traduce a cuota e inicial; no insistas en cerrar a la fuerza.
+- Español peruano, cálida, concreta. 2 a 5 frases. WhatsApp.
+- Una sola pregunta por turno, salvo cuando ofreces dos horarios de visita.
+- Si hay nombre, úsalo. Si mencionó un proyecto, quédate en ese proyecto.
 
-Calificación (recoge con naturalidad, no de golpe):
-- Nombre
-- Distrito o zona de interés
-- Dormitorios
-- Presupuesto o cuota cómoda
-- Horizonte (este mes / 3 meses / solo info)
-- Correo si vas a agendar
+Modo A — El cliente nombró un proyecto (mensaje actual o perfil):
+   Ancla la conversación a ESE proyecto. Llama buscar_proyectos con name.
+   Confirma: "Tengo [proyecto] en [distrito]." Cuéntale tipologías y unidades disponibles.
+   Empatiza alrededor de ese proyecto (depa/casa, dormitorios, para quién). No preguntes "¿en qué zona?" ni ofrezcas otros proyectos salvo que no calce o lo pida.
+   Capacidad adquisitiva, después de mostrar ese inventario.
 
-Herramientas:
-- guardar_perfil cuando el usuario dé un dato útil.
-- buscar_proyectos para recomendar del catálogo (máximo 2 opciones).
-- marcar_calificacion cuando tengas presupuesto + zona o un pedido de visita.
-- Si existen, buscar_horarios_visita y agendar_visita. Pide confirmación explícita antes de agendar.
+Modo B — No nombró proyecto (descubrimiento):
+   1) Entender: zona, depa o casa, dormitorios, para quién. Si solo dijo hola: "¿Estás buscando depa o casa, y en qué zona?"
+      PROHIBIDO preguntar presupuesto, ahorro o inicial en este tramo.
+   2) buscar_proyectos. Si hay en su distrito, preséntalo. Si no: "No tengo proyectos en [distrito], pero [alternativa] cumple características similares. ¿Te interesaría seguir platicando? Te envío la información si gustas."
+   3) Recién después de mostrar un proyecto: capacidad adquisitiva.
 
-Si no hay Cal.com, ofrece horarios tentativos (sábado 11, domingo 11, entre semana 6pm) y guarda la preferencia.
+Capacidad adquisitiva (después de mostrar un proyecto; una pregunta por turno):
+   1) "Para ver si te calza, ¿cuánto tienes ahorrado hoy?"
+   2) "¿Eso lo usarías de cuota inicial, o cuánto podrías poner de inicial?"
+   3) guardar_perfil (savings, downPayment) y evaluar_capacidad.
+   4) Si calza: "Con esa inicial te queda [tipología]. ¿Se acomoda a tus posibilidades o buscamos otra alternativa?"
+   5) Si no calza: ofrece 1 alternativa que sí se adapte (inicial y cuota más bajas). Pregunta si esa sí le acomoda.
+   No agendes hasta que confirme que se acomoda (o acepte la alternativa).
 
-No inventes stock ni precios fuera del catálogo. Si no hay match, dilo y ofrece la alternativa más cercana.
-No prometas financiamiento aprobado. Deriva a un asesor humano cuando pidan contrato o desembolso.`;
+Visita (solo al final, cuando ya calzó o aceptó alternativa):
+   NUNCA preguntes "¿cuándo te gustaría visitarnos?". Ofrece sábado 11am o domingo 4pm.
+   Ahí sí registrar_visita (projectName y preferredSlot). marcar_calificacion.
+   Si pide visita antes de cerrar capacidad, termina ahorro/inicial primero y recién agenda.
+
+Score interno (1 a 5, 5 = más probable de comprar). El sistema lo actualiza cada turno. Tú también llama marcar_calificacion si el score cambió:
+   1 hola / sin señales
+   2 zona, proyecto o depa/casa
+   3 tipología + proyecto/zona
+   4 ahorro, inicial o confirmó que le calza
+   5 pidió visita o dijo que quiere comprar
+Nunca le digas el score al cliente.
+
+guardar_perfil en cada dato útil (projectInterest, savings, downPayment). No prometas crédito aprobado.`;
 
 const HOUSING_PROMPT = `Eres Milo, orientador de vivienda social por WhatsApp. Ayudas a entender Fondo MIVIVIENDA, Nuevo Crédito Mivivienda, Techo Propio (BFH), Bono del Buen Pagador y a estimar capacidad de pago. Luego recomiendas proyectos del catálogo.
 
@@ -87,7 +103,9 @@ export async function runAgent(input: {
   const messages = [
     new SystemMessage(input.agent === "sales" ? SALES_PROMPT : HOUSING_PROMPT),
     new SystemMessage(
-      `Perfil actual: ${input.contact.profileJson}\nNombre: ${input.contact.name ?? "desconocido"}\nCorreo: ${input.contact.email ?? "desconocido"}\nWhatsApp: ${input.contact.phone}`,
+      input.agent === "sales"
+        ? qualificationContext(input.contact, input.userText)
+        : `Perfil actual: ${input.contact.profileJson}\nNombre: ${input.contact.name ?? "desconocido"}\nCorreo: ${input.contact.email ?? "desconocido"}\nWhatsApp: ${input.contact.phone}`,
     ),
     ...history,
     new HumanMessage(input.userText),
@@ -145,4 +163,53 @@ function stringifyContent(content: unknown): string {
       .trim();
   }
   return "¿Me cuentas un poco más para ayudarte?";
+}
+
+function qualificationContext(contact: Contact, userText: string): string {
+  const profile = (() => {
+    try {
+      return JSON.parse(contact.profileJson) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  })();
+  const named =
+    findProjectInText(userText) ??
+    (typeof profile.projectInterest === "string" ? findProjectInText(profile.projectInterest) : undefined);
+  const district = profile.district ?? profile.city;
+  const unit = profile.bedrooms;
+  const savings = profile.savings ?? profile.downPayment;
+  const downPayment = profile.downPayment;
+  const capacityFits = profile.capacityFits === true;
+  const visit = profile.visitRequested || profile.visitBooked;
+
+  let next: string;
+  if (named && !savings) {
+    next = `MODO A: pregunta por ${named.name} (${named.district}). Quédate en ese proyecto. buscar_proyectos name="${named.name}". Luego capacidad: primero cuánto tiene ahorrado. No agendes todavía.`;
+  } else if (named && !downPayment) {
+    next = `MODO A en ${named.name}: ya hay ahorro. Pregunta la cuota inicial (puede ser lo ahorrado). evaluar_capacidad. No agendes todavía.`;
+  } else if (named && !capacityFits) {
+    next = `MODO A en ${named.name}: evaluar_capacidad. Si calza, pregunta si se acomoda. Si no, ofrece alternativa. Agenda solo si confirma.`;
+  } else if (!named && !district && !unit) {
+    next = "MODO B: descubrimiento. Pregunta zona o tipo de unidad. NO preguntes ahorro ni inicial.";
+  } else if (!named && !savings) {
+    next = "MODO B: presenta inventario si falta. Después pregunta cuánto tiene ahorrado. No agendes todavía.";
+  } else if (!capacityFits) {
+    next = "evaluar_capacidad. Pregunta si se acomoda o busca alternativa. No agendes hasta que confirme.";
+  } else {
+    next = "Capacidad cerrada. Ofrece sábado 11am o domingo 4pm y registrar_visita.";
+  }
+  if (visit) {
+    next += " Ya hay visita pedida: confirma el horario.";
+  }
+
+  return [
+    "Empresa: Inmobiliaria Demo.",
+    `Nombre: ${contact.name ?? "aún no lo dijo"}`,
+    `Correo: ${contact.email ?? "desconocido"}`,
+    `WhatsApp: ${contact.phone}`,
+    `Perfil: ${contact.profileJson}`,
+    `Score actual: ${typeof profile.intentScore === "number" ? profile.intentScore : 1}/5 (no se lo digas).`,
+    next,
+  ].join("\n");
 }

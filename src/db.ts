@@ -1,38 +1,10 @@
 import type { AgentKind } from "./config";
 import { getSupabase } from "./lib/supabase";
-import * as sqliteDb from "./db-sqlite";
 import type { Contact, StoredMessage } from "./types";
 
 export type { Contact, StoredMessage };
 
-let backend: "supabase" | "sqlite" | null = null;
-
-function missingTable(error: { code?: string; message?: string } | null): boolean {
-  if (!error) return false;
-  return (
-    error.code === "PGRST205" ||
-    Boolean(error.message?.includes("Could not find the table"))
-  );
-}
-
-async function useSqlite(): Promise<boolean> {
-  if (backend === "sqlite") return true;
-  if (backend === "supabase") return false;
-  const { error } = await getSupabase().from("contacts").select("id").limit(1);
-  if (missingTable(error)) {
-    backend = "sqlite";
-    console.log(
-      JSON.stringify({
-        msg: "db_fallback_sqlite",
-        reason: "supabase_sin_tablas_aplica_migraciones",
-      }),
-    );
-    return true;
-  }
-  if (error) throw error;
-  backend = "supabase";
-  return false;
-}
+const CONTACT_COLS = "id, agent, whatsapp_id, phone_number, name, email, intent_score";
 
 type ContactRow = {
   id: string;
@@ -41,6 +13,7 @@ type ContactRow = {
   phone_number: string | null;
   name: string | null;
   email: string | null;
+  intent_score?: number | null;
 };
 
 type ConversationRow = {
@@ -58,8 +31,6 @@ export async function upsertContact(input: {
   username?: string | null;
   kapsoConversationId?: string;
 }): Promise<Contact> {
-  if (await useSqlite()) return sqliteDb.upsertContact(input);
-
   const supabase = getSupabase();
 
   const { data: contact, error: contactError } = await supabase
@@ -72,7 +43,7 @@ export async function upsertContact(input: {
       },
       { onConflict: "agent,whatsapp_id" },
     )
-    .select("id, agent, whatsapp_id, phone_number, name, email")
+    .select(CONTACT_COLS)
     .single();
   if (contactError) throw contactError;
 
@@ -89,12 +60,10 @@ export async function upsertContact(input: {
 }
 
 export async function getContact(id: string): Promise<Contact> {
-  if (await useSqlite()) return sqliteDb.getContact(id);
-
   const supabase = getSupabase();
   const { data: contact, error } = await supabase
     .from("contacts")
-    .select("id, agent, whatsapp_id, phone_number, name, email")
+    .select(CONTACT_COLS)
     .eq("id", id)
     .single();
   if (error) throw error;
@@ -115,29 +84,32 @@ export async function updateContactProfile(
   id: string,
   patch: Record<string, unknown>,
 ): Promise<Contact> {
-  if (await useSqlite()) return sqliteDb.updateContactProfile(id, patch);
-
   const contact = await getContact(id);
   const current = parseProfile(contact.profileJson);
   const next = { ...current, ...stripUndefined(patch) };
   const name = typeof next.name === "string" ? next.name : contact.name;
   const email = typeof next.email === "string" ? next.email : contact.email;
+  const intentScore = typeof next.intentScore === "number" ? next.intentScore : undefined;
 
   const supabase = getSupabase();
   const { error } = await supabase
     .from("contacts")
-    .update({ name, email })
+    .update(stripUndefined({ name, email, intent_score: intentScore }))
     .eq("id", id);
   if (error) throw error;
 
   await mergeProfile(id, next);
 
   if (typeof patch.qualified === "boolean") {
+    const stage =
+      next.visitBooked === true || next.visitRequested === true
+        ? "appointment_requested"
+        : patch.qualified
+          ? "qualified"
+          : "discovering";
     await supabase
       .from("conversations")
-      .update({
-        stage: patch.qualified ? "qualified" : "discovering",
-      })
+      .update({ stage })
       .eq("id", contact.conversationId);
   }
 
@@ -151,8 +123,6 @@ export async function insertMessage(input: {
   content: string;
   kapsoId?: string | null;
 }): Promise<void> {
-  if (await useSqlite()) return sqliteDb.insertMessage(input);
-
   const supabase = getSupabase();
   const { error } = await supabase.from("messages").upsert(
     {
@@ -176,8 +146,6 @@ export async function recentMessages(
   contactId: string,
   limit = 16,
 ): Promise<StoredMessage[]> {
-  if (await useSqlite()) return sqliteDb.recentMessages(contactId, limit);
-
   const contact = await getContact(contactId);
   const supabase = getSupabase();
   const { data, error } = await supabase
@@ -200,9 +168,74 @@ export async function recentMessages(
     }));
 }
 
-export async function claimIdempotencyKey(key: string, eventName = "whatsapp.message.received"): Promise<boolean> {
-  if (await useSqlite()) return sqliteDb.claimIdempotencyKey(key);
+export async function requestVisit(input: {
+  contactId: string;
+  conversationId: string;
+  projectName?: string;
+  preferredAt?: string | null;
+  preferredLabel?: string;
+  notes?: string;
+  status?: "requested" | "confirmed";
+}): Promise<{ id: string; status: string; requestedFor: string | null }> {
+  const supabase = getSupabase();
+  const notes = [input.projectName && `Proyecto: ${input.projectName}`, input.preferredLabel, input.notes]
+    .filter(Boolean)
+    .join(" · ");
+  const status = input.status ?? (input.preferredAt ? "confirmed" : "requested");
 
+  const { data: existing, error: existingError } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("contact_id", input.contactId)
+    .in("status", ["requested", "confirmed"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existingError) throw existingError;
+
+  const payload = {
+    contact_id: input.contactId,
+    conversation_id: input.conversationId,
+    kind: "visit",
+    requested_for: input.preferredAt ?? null,
+    status,
+    notes: notes || null,
+  };
+
+  const { data, error } = existing
+    ? await supabase.from("appointments").update(payload).eq("id", existing.id).select("id, status, requested_for").single()
+    : await supabase.from("appointments").insert(payload).select("id, status, requested_for").single();
+  if (error) throw error;
+
+  await supabase
+    .from("conversations")
+    .update({ stage: "appointment_requested" })
+    .eq("id", input.conversationId);
+
+  await supabase
+    .from("contacts")
+    .update({ intent_score: 5 })
+    .eq("id", input.contactId);
+
+  await mergeProfile(input.contactId, {
+    visitRequested: true,
+    visitBooked: status === "confirmed",
+    visitAt: input.preferredAt ?? undefined,
+    visitPreference: input.preferredLabel,
+    projectInterest: input.projectName,
+    intentScore: 5,
+    qualified: true,
+    qualificationNote: "Pidió o confirmó visita",
+  });
+
+  return {
+    id: data.id as string,
+    status: data.status as string,
+    requestedFor: (data.requested_for as string | null) ?? null,
+  };
+}
+
+export async function claimIdempotencyKey(key: string, eventName = "whatsapp.message.received"): Promise<boolean> {
   const supabase = getSupabase();
   const { data: existing, error: readError } = await supabase
     .from("processed_events")
@@ -293,6 +326,7 @@ async function mergeProfile(contactId: string, extra: Record<string, unknown>) {
       extra: merged,
       bedrooms: typeof extra.bedrooms === "number" ? extra.bedrooms : undefined,
       budget_max: typeof extra.budgetMax === "number" ? extra.budgetMax : undefined,
+      savings: typeof extra.savings === "number" ? extra.savings : undefined,
       preferred_zones:
         typeof extra.district === "string" ? [extra.district] : undefined,
     },
@@ -310,6 +344,9 @@ async function hydrate(contact: ContactRow, conversation: ConversationRow): Prom
     .maybeSingle();
   const extra = (data as ProfileRow | null)?.extra ?? {};
   const username = typeof extra.username === "string" ? extra.username : null;
+  if (typeof extra.intentScore !== "number" && typeof contact.intent_score === "number") {
+    extra.intentScore = contact.intent_score;
+  }
 
   return {
     id: contact.id,

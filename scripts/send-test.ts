@@ -22,7 +22,7 @@ const client = new WhatsAppClient({
 
 const body =
   agent === "sales"
-    ? "Hola, soy Tami de sala de ventas. Escríbeme cuando quieras ver un depa 👋"
+    ? "Hola, soy Tami de Inmobiliaria Demo. ¿Estás buscando depa o casa, y en qué zona? 👋"
     : "Hola, soy Milo. Te oriento con Mivivienda y Techo Propio. Escríbeme tu consulta 👋";
 
 const response = await client.messages.sendText({

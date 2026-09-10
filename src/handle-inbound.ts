@@ -1,6 +1,15 @@
-import { claimIdempotencyKey, insertMessage, upsertContact, updateContactProfile } from "./db";
+import { findProjectInText } from "./catalog";
+import {
+  claimIdempotencyKey,
+  getContact,
+  insertMessage,
+  parseProfile,
+  upsertContact,
+  updateContactProfile,
+} from "./db";
 import { extractInboundEvents, type InboundMessage } from "./inbound";
 import { runAgent } from "./agent";
+import { nextLeadScore } from "./score";
 import { sendWhatsAppText } from "./whatsapp";
 import { phoneNumberIdForAgent } from "./config";
 
@@ -37,10 +46,21 @@ async function handleInbound(event: InboundMessage): Promise<void> {
     kapsoConversationId: event.conversationId,
   });
 
-  const named =
+  let named =
     event.contactName && !contact.name
       ? await updateContactProfile(contact.id, { name: event.contactName })
       : contact;
+
+  if (event.agent === "sales") {
+    const mentioned = findProjectInText(event.text);
+    if (mentioned) {
+      named = await updateContactProfile(named.id, {
+        projectInterest: mentioned.name,
+        district: mentioned.district,
+        city: mentioned.city,
+      });
+    }
+  }
 
   await insertMessage({
     contactId: named.id,
@@ -68,6 +88,10 @@ async function handleInbound(event: InboundMessage): Promise<void> {
       "Perdón, tuve un problema técnico. ¿Me escribes de nuevo en un minuto?";
   }
 
+  if (event.agent === "sales") {
+    await persistLeadScore(named.id, event.text);
+  }
+
   try {
     const kapsoId = await sendWhatsAppText({
       phoneNumberId: phoneNumberIdForAgent(event.agent),
@@ -90,4 +114,25 @@ async function handleInbound(event: InboundMessage): Promise<void> {
       }),
     );
   }
+}
+
+async function persistLeadScore(contactId: string, userText: string): Promise<void> {
+  const contact = await getContact(contactId);
+  const profile = parseProfile(contact.profileJson);
+  const scored = nextLeadScore({ profile, userText });
+  if (profile.intentScore === scored.score && profile.qualified === scored.qualified) {
+    return;
+  }
+  await updateContactProfile(contactId, {
+    intentScore: scored.score,
+    qualified: scored.qualified,
+    qualificationNote: scored.reason,
+  });
+  console.log(
+    JSON.stringify({
+      msg: "lead_scored",
+      score: scored.score,
+      qualified: scored.qualified,
+    }),
+  );
 }
