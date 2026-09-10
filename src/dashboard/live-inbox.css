@@ -151,6 +151,12 @@
   .workspace .lead-line strong { max-width: calc(100% - 88px); }
 }
 
+.workspace .sort-control { display: flex; align-items: center; gap: 12px; margin-top: 12px; color: #385547; font-size: 14px; font-weight: 600; }
+.workspace .sort-control > span { flex-shrink: 0; }
+.workspace .sort-control select { flex: 1; min-width: 0; min-height: 44px; padding: 8px 10px; background: white; border: 1px solid #d7e2dc; border-radius: 8px; color: #243e31; font: inherit; }
+.workspace .sort-control select:focus-visible { outline: 2px solid #277b59; outline-offset: 2px; }
+.workspace .sort-description { margin: 7px 0 0; color: #586c61; font-size: 12px; line-height: 1.5; }
+
 @media (max-width: 420px) {
   .workspace .topbar { flex-direction: column; gap: 8px; }
   .workspace .topbar-actions { margin-top: 0; }

@@ -109,7 +109,24 @@ describe("live dashboard HTTP guardrails", () => {
     expect(data.items[0].messages).toBeUndefined();
     const paged = await (await handle(request("/api/contacts?offset=1&limit=1", "GET", cookie))).json();
     expect(paged.total).toBe(2);
-    expect(paged.items[0].id).toBe("b");
+    expect(paged.items[0].id).toBe("a");
+  });
+
+  test("orders the full filtered list before pagination without changing the cached snapshot", async () => {
+    const data = snapshot();
+    data.contacts.find(c => c.id === "a")!.intentScore = 5;
+    data.contacts.find(c => c.id === "b")!.intentScore = 2;
+    const original = data.contacts.map(c => c.id);
+    const handle = handler(async () => data);
+    const cookie = await session(handle);
+    for (const [sort, expected] of [["recent", "b"], ["oldest", "a"], ["score", "a"], ["priority", "a"], ["invalid", "b"]]) {
+      const body = await (await handle(request(`/api/contacts?sort=${sort}&limit=1`, "GET", cookie))).json();
+      expect(body.total).toBe(2);
+      expect(body.items[0].id).toBe(expected);
+    }
+    const filtered = await (await handle(request("/api/contacts?agent=housing&sort=score", "GET", cookie))).json();
+    expect(filtered.items.map((c: {id: string}) => c.id)).toEqual(["b"]);
+    expect(data.contacts.map(c => c.id)).toEqual(original);
   });
 
   test("needs-followup uses pending tasks, not failed attempts", async () => {

@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { DashboardSnapshot } from "./dashboard-data";
 import type { Stage, Stats } from "./dashboard/types";
+import { normalizeSort, sortContacts } from "./dashboard/sorting.js";
 
 const same = (a: string, b: string) => { const x = Buffer.from(a); const y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
 export function createDashboardHandler(read: () => Promise<DashboardSnapshot>, password: string, secret: string) {
@@ -48,11 +49,12 @@ export function createDashboardHandler(read: () => Promise<DashboardSnapshot>, p
         const filtered = snapshot.contacts.filter(c => (!agent || c.agent === agent) && (!stage || (stage === "needs_followup" ? c.nextFollowUpAt && Date.parse(c.nextFollowUpAt) <= Date.now() : c.stage === stage as Stage)) && (!query || [c.name, c.phone, c.lastMessagePreview].some(s => s?.toLocaleLowerCase("es").includes(query))));
         const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
         const limit = Math.min(100, Math.max(1, Number(url.searchParams.get("limit")) || 100));
-        return json({ items:filtered.slice(offset, offset + limit), total:filtered.length });
+        const sorted = sortContacts(filtered, normalizeSort(url.searchParams.get("sort")));
+        return json({ items:sorted.slice(offset, offset + limit), total:filtered.length });
       }
       const match = url.pathname.match(/^\/api\/contacts\/([^/]+)$/);
       if (match) { const detail = snapshot.details.get(match[1]!); return detail ? json(detail) : json({ error:"Contacto no encontrado" }, 404); }
       return json({ error:"Ruta no encontrada" }, 404);
-    } catch { return json({ error:"No se pudo leer Supabase. No se reemplazaron los datos por una demo." }, 503); }
+    } catch { return json({ error:"No se pudo consultar la fuente de datos. Inténtalo nuevamente." }, 503); }
   };
 }

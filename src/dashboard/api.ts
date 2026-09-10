@@ -91,6 +91,8 @@ export function hasMockSession() {
   return sessionStorage.getItem("mensajito_mock_session") === "active";
 }
 
+import { sortContacts } from "./sorting";
+
 /** GET /api/contacts → lista paginada con preview del último mensaje. */
 export async function listContacts(filters: ContactFilters = {}): Promise<{ items: ContactListItem[]; total: number }> {
   if (!USE_MOCK) {
@@ -112,7 +114,10 @@ export async function listContacts(filters: ContactFilters = {}): Promise<{ item
       contact.lastMessagePreview.toLocaleLowerCase("es").includes(query);
     return matchesAgent && matchesStage && matchesQuery;
   });
-  return { items: copy(items), total: items.length };
+  const sorted = sortContacts(items, filters.sort);
+  const offset = Math.max(0, filters.offset ?? 0);
+  const limit = Math.min(100, Math.max(1, filters.limit ?? 100));
+  return { items: copy(sorted.slice(offset, offset + limit)), total: items.length };
 }
 
 /** GET /api/contacts/:id → contacto, últimos mensajes y seguimientos. */

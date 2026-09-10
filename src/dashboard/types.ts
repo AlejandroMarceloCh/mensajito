@@ -75,7 +75,10 @@ export type Appointment = {
   notes: string | null;
 };
 
+export type ContactSort = "recent" | "priority" | "score" | "oldest";
+
 export type ContactFilters = {
+  sort?: ContactSort;
   agent?: AgentKind;
   stage?: Stage | "needs_followup";
   q?: string;

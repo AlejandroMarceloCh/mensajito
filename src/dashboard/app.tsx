@@ -5,7 +5,8 @@ import { LayoutDashboard, Inbox, LogOut } from "lucide-react";
 import "./live-inbox.css";
 import { scoreVisual } from "./score";
 import "./score.css";
-import type { AgentKind, ContactDetail, ContactListItem, Stage, Stats } from "./types";
+import type { AgentKind, ContactDetail, ContactListItem, ContactSort, Stage, Stats } from "./types";
+import { lastActivity } from "./sorting";
 import { STAGES, STAGE_TRANSITIONS } from "./types";
 import {
   USE_MOCK,
@@ -176,6 +177,7 @@ function App() {
   const [agent, setAgent] = useState<AgentKind | "all">("all");
   const [stage, setStage] = useState<Stage | "needs_followup" | "all">("all");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<ContactSort>("recent");
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -191,6 +193,7 @@ function App() {
           agent: agent === "all" ? undefined : agent,
           stage: stage === "all" ? undefined : stage,
           q: query || undefined,
+          sort,
         }),
         getStats(),
       ]);
@@ -212,7 +215,7 @@ function App() {
     const timer = setTimeout(() => void refresh(), 220);
     const polling = setInterval(() => void refresh(true), 10_000);
     return () => { ++listRequest.current; clearTimeout(timer); clearInterval(polling); };
-  }, [authenticated, agent, stage, query]);
+  }, [authenticated, agent, stage, query, sort]);
 
   useEffect(() => {
     if (!authenticated || !selectedId) { setDetail(null); return; }
@@ -357,6 +360,16 @@ function App() {
                   {STAGES.map((value) => <option key={value} value={value}>{stageLabels[value]}</option>)}
                 </select>
               </div>
+              <label className="sort-control">
+                <span>Ordenar por</span>
+                <select value={sort} onChange={(event) => setSort(event.target.value as ContactSort)} aria-label="Ordenar leads" aria-describedby="sort-description">
+                  <option value="recent">Más recientes</option>
+                  <option value="priority">Prioridad comercial</option>
+                  <option value="score">Mayor calificación</option>
+                  <option value="oldest">Más antiguos</option>
+                </select>
+              </label>
+              <p className="sort-description" id="sort-description">{sort === "priority" ? "Seguimientos vencidos primero; luego, mayor calificación." : sort === "score" ? "Mayor intención primero; sin evaluar al final." : "Según la última actividad de la conversación."}</p>
               <div className="list-heading"><span>{contacts.length} {contacts.length === 1 ? "lead" : "leads"}</span><small>Actualiza cada 10 s</small></div>
             </div>
 
@@ -365,7 +378,7 @@ function App() {
                 <button key={contact.id} className={`lead-row ${selectedId === contact.id ? "lead-row--active" : ""}`} onClick={() => setSelectedId(contact.id)}>
                   <span className={`avatar avatar--${contact.agent}`}>{initials(contact)}</span>
                   <span className="lead-content">
-                    <span className="lead-line"><strong>{contact.name ?? contact.phone}</strong><time>{relativeTime(contact.lastInboundAt)}</time></span>
+                    <span className="lead-line"><strong>{contact.name ?? contact.phone}</strong><time>{relativeTime(lastActivity(contact) ? new Date(lastActivity(contact)).toISOString() : null)}</time></span>
                     <span className="lead-meta"><StagePill stage={contact.stage}/><Score value={contact.intentScore}/>{contact.nextFollowUpAt && new Date(contact.nextFollowUpAt) <= new Date() && <span className="overdue"><Icon name="clock" size={12}/> Vencido</span>}</span>
                     <span className="preview">{contact.lastMessagePreview}</span>
                   </span>
