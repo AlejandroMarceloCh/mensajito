@@ -113,7 +113,7 @@ export function Overview({ onOpen }) {
             children: [
               /* @__PURE__ */ jsx_runtime.jsx("span", {
                 className: "demo-badge",
-                children: USE_MOCK ? "Entorno demo" : all.some(c => c.profile?.demo === true) ? "Supabase · Incluye datos DEMO" : "Supabase · Solo lectura"
+                children: USE_MOCK ? "Vista previa" : "Conectado"
               }),
               /* @__PURE__ */ jsx_runtime.jsx("span", {
                 className: "team-avatar",
@@ -984,7 +984,7 @@ export function Overview({ onOpen }) {
                       /* @__PURE__ */ jsx_runtime.jsx("span", {
                         className: "status-dot"
                       }),
-                      USE_MOCK ? all.length + " contactos de demostración" : "Datos reales de Supabase · Solo lectura",
+                      USE_MOCK ? all.length + " contactos de vista previa" : "Historial sincronizado · Solo lectura",
                       /* @__PURE__ */ jsx_runtime.jsx("span", {
                         className: "footer-divider",
                         children: "·"
@@ -1213,7 +1213,7 @@ export function Overview({ onOpen }) {
                     }),
                     /* @__PURE__ */ jsx_runtime.jsxs("dd", {
                       children: [
-                        USE_MOCK ? "Esta demo usa 8 contactos ficticios compartidos con la bandeja. " : "La fuente es Supabase: contacts, messages, conversations, lead_profiles, follow_ups y appointments. Acceso de solo lectura. ",
+                        USE_MOCK ? "Esta vista previa usa 8 contactos compartidos con la bandeja. " : "La fuente es Supabase: contacts, messages, conversations, lead_profiles, follow_ups y appointments. Acceso de solo lectura. ",
                         "La retención y la conversión histórica entre etapas requieren eventos adicionales; no se estiman aquí."
                       ]
                     })

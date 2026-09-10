@@ -17,9 +17,20 @@ const groupBy = <T extends Row>(rows: T[], key: string) => {
 // Keep requested appointments, handoffs and closed conversations distinct.
 // In particular, "closed" is not proof of a sale or a lost opportunity.
 const sourceStages: Record<string, Stage> = { new: "new", discovering: "qualifying", qualified: "qualified", appointment_requested: "appointment_requested", handed_off: "handed_off", nurturing: "nurture", closed: "closed" };
+// Presentation only: preserve seed provenance and opt-out flags in storage.
+const presentationText = (value: unknown): string | null => {
+  const valueText = text(value);
+  return valueText === null ? null : valueText
+    .replace(/\[DEMO[^\]]*\]\s*/gi, "")
+    .replace(/\s*·\s*DEMO\b/gi, "")
+    .replace(/\b(?:de|para)\s+(?:esta\s+)?(?:demostración|demo)\b/gi, "")
+    .replace(/\b(?:demo|demostración|simulad[oa]s?|fictici[oa]s?)\b/gi, "")
+    .replace(/\s{2,}/g, " ").replace(/\s+([.,;:])/g, "$1").trim();
+};
 export function mapSnapshot(source: SourceTables, now = Date.now()): DashboardSnapshot {
   const details = new Map<string, ContactDetail>();
-  const appointments: Appointment[] = source.appointments.map(a => ({ id: String(a.id), contactId: String(a.contact_id), kind: a.kind as Appointment["kind"], requestedFor: text(a.requested_for), status: a.status as Appointment["status"], notes: text(a.notes) }));
+  const seedContacts = new Set(source.lead_profiles.filter(p => object(p.extra).demo === true).map(p => p.contact_id));
+  const appointments: Appointment[] = source.appointments.map(a => ({ id: String(a.id), contactId: String(a.contact_id), kind: a.kind as Appointment["kind"], requestedFor: text(a.requested_for), status: a.status as Appointment["status"], notes: seedContacts.has(a.contact_id) ? presentationText(a.notes) : text(a.notes) }));
   // Index relationships once; do not rescan the entire message table for every lead.
   const conversationsByContact = groupBy(source.conversations, "contact_id");
   const messagesByConversation = groupBy(source.messages, "conversation_id");
@@ -48,6 +59,16 @@ export function mapSnapshot(source: SourceTables, now = Date.now()): DashboardSn
     const stage = sourceStage === "appointment_requested" && confirmedVisit ? "visit_scheduled" : sourceStages[sourceStage] ?? "unknown";
     const contact: ContactListItem = { id, agent:c.agent, phone:text(c.phone_number) ?? text(c.whatsapp_id) ?? "Sin teléfono", username:text(extra.username), name:text(c.name), email:text(c.email), stage, sourceStage, intentScore:num(c.intent_score) ?? num(extra.intentScore), profile, lastInboundAt, lastOutboundAt, nextFollowUpAt:followUps.find(f => f.status === "pending")?.dueAt ?? null, sessionOpen:Boolean(lastInboundAt && now >= time(lastInboundAt) && now - time(lastInboundAt) < 86400000), assignedTo:text(extra.assignedTo), createdAt:String(c.created_at), updatedAt:String(c.updated_at), lastMessagePreview:messages.at(-1)?.content ?? "Sin mensajes registrados", conversationCount:conversations.length, messageCount:messages.length };
     details.set(id, { contact, messages, followUps, appointments:appointmentsByContact.get(id) ?? [] });
+    if (seedContacts.has(c.id)) {
+      contact.name = presentationText(contact.name);
+      contact.phone = "Sin teléfono vinculado";
+      contact.email = null;
+      contact.assignedTo = presentationText(contact.assignedTo);
+      for (const key of ["notes", "objection", "qualificationNote", "assignedTo"]) {
+        if (typeof contact.profile[key] === "string") contact.profile[key] = presentationText(contact.profile[key]);
+      }
+      for (const followUp of followUps) followUp.note = presentationText(followUp.note);
+    }
     return contact;
   });
   return { contacts, details, appointments };

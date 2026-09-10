@@ -8,6 +8,21 @@ const conversation = (id: string, contact_id: string, overrides = {}) => ({ id, 
 const message = (id: string, conversation_id: string, direction: string, created_at: string, body = id) => ({ id, conversation_id, direction, created_at, body, message_type: "text" });
 
 describe("live dashboard source mapping", () => {
+  test("hides seed labels in presentation without changing stored provenance or real contacts", () => {
+    const source = tables({
+      contacts: [{ ...contact("a"), name: "Ana Torres · DEMO", email: "ana@example.invalid" }, { ...contact("b"), name: "Demo Studio" }],
+      lead_profiles: [{ contact_id: "a", extra: { demo: true, demoBatch: "seed-1", notes: "[DEMO] Visita simulada para demostración.", assignedTo: "Equipo demo" } }],
+      appointments: [{ id: "visit", contact_id: "a", kind: "visit", status: "confirmed", requested_for: "2026-09-12T16:00:00Z", notes: "[DEMO · NO RESERVA REAL] Visita simulada a las 11:00." }],
+      follow_ups: [{ id: "follow", contact_id: "a", scheduled_for: "2026-09-11T16:00:00Z", status: "pending", reason: "[DEMO · NO ENVIAR] Seguimiento simulado vencido", created_at: "2026-09-10T16:00:00Z" }],
+    });
+    const original = structuredClone(source);
+    const result = mapSnapshot(source, now);
+    expect(result.contacts[0]).toMatchObject({ name: "Ana Torres", phone: "Sin teléfono vinculado", email: null, profile: { demo: true, demoBatch: "seed-1", notes: "Visita." } });
+    expect(result.contacts[1]?.name).toBe("Demo Studio");
+    expect(result.appointments[0]?.notes).toBe("Visita a las 11:00.");
+    expect(result.details.get("a")?.followUps[0]?.note).toBe("Seguimiento vencido");
+    expect(source).toEqual(original);
+  });
   test("joins all historical conversations without mixing contact histories", () => {
     const result = mapSnapshot(tables({
       contacts: [contact("a"), contact("b", "housing")],

@@ -133,7 +133,7 @@ function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
           <h1>Cada conversación, un paso más cerca del hogar correcto.</h1>
           <p>Prioriza oportunidades, entiende el contexto y acompaña a tus leads sin perder el hilo.</p>
         </div>
-        <div className="story-status"><span className="live-dot"/> {USE_MOCK ? "Entorno de demostración" : "Historial de WhatsApp · acceso privado"}</div>
+        <div className="story-status"><span className="live-dot"/> {USE_MOCK ? "Vista previa local" : "Historial de WhatsApp · acceso privado"}</div>
       </section>
       <section className="login-panel">
         <form className="login-card" onSubmit={submit}>
@@ -145,7 +145,7 @@ function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
           <input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="••••••••••" autoComplete="current-password" autoFocus />
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="button button--primary button--wide" disabled={loading}>{loading ? "Ingresando…" : "Ingresar al CRM"}</button>
-          {USE_MOCK && <p className="demo-note"><span className="demo-pill">DEMO</span> Usa cualquier contraseña de 4 caracteres.</p>}
+          {USE_MOCK && <p className="demo-note"><span className="demo-pill">LOCAL</span> Usa cualquier contraseña de 4 caracteres.</p>}
         </form>
       </section>
     </main>
@@ -324,7 +324,7 @@ function App() {
             <h1>Conversaciones</h1>
           </div>
           <div className="topbar-actions">
-            <span className={`environment ${USE_MOCK ? "" : "environment--live"}`}><span/> {USE_MOCK ? "Datos demo" : "Supabase · solo lectura"}</span>
+            <span className={`environment ${USE_MOCK ? "" : "environment--live"}`}><span/> {USE_MOCK ? "Vista previa" : "Supabase · solo lectura"}</span>
           </div>
         </header>
 
