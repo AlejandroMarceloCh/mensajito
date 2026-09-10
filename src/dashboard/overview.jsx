@@ -134,18 +134,18 @@ export function Overview({ onOpen }) {
                 children: [
                   /* @__PURE__ */ jsx_runtime.jsx("div", {
                     className: "page-eyebrow",
-                    children: "TU OPERACIÓN, EN PERSPECTIVA"
+                    children: "ANALÍTICA COMERCIAL"
                   }),
                   /* @__PURE__ */ jsx_runtime.jsxs("h1", {
                     children: [
-                      "Cada lead cuenta",
+                      "Rendimiento comercial",
                       /* @__PURE__ */ jsx_runtime.jsx("span", {
                         children: "."
                       })
                     ]
                   }),
                   /* @__PURE__ */ jsx_runtime.jsx("p", {
-                    children: "Entiende el interés. Encuentra la oportunidad. Da el siguiente paso."
+                    children: "Indicadores de captación, calificación y seguimiento de leads."
                   })
                 ]
               }),
@@ -312,18 +312,18 @@ export function Overview({ onOpen }) {
                     children: [
                       /* @__PURE__ */ jsx_runtime.jsx("span", {
                         className: "priority-eyebrow",
-                        children: "EL SIGUIENTE PASO IMPORTA"
+                        children: "SEGUIMIENTOS PRIORITARIOS"
                       }),
                       /* @__PURE__ */ jsx_runtime.jsx("h2", {
-                        children: overdue.length ? overdue.length + (overdue.length === 1 ? " oportunidad necesita" : " oportunidades necesitan") + " que retomes el contacto" : attention.length ? attention.length + " conversaciones esperan tu revisión" : "Tu operación está al día"
+                        children: overdue.length ? overdue.length + (overdue.length === 1 ? " seguimiento vencido" : " seguimientos vencidos") : attention.length ? attention.length + " conversaciones pendientes de revisión" : "Sin seguimientos vencidos"
                       }),
                       /* @__PURE__ */ jsx_runtime.jsx("p", {
-                        children: overdue.length ? "Hay seguimientos vencidos. Abre el contexto del lead y continúa desde donde quedaron." : "Revisa la actividad del equipo y acompaña cada oportunidad."
+                        children: overdue.length ? "Consulta el historial y gestiona los contactos pendientes." : "Consulta la actividad comercial y el estado de las oportunidades."
                       })
                     ]
                   }),
                   attention.length > 0 && /* @__PURE__ */ jsx_runtime.jsxs("button", {
-                    onClick: () => show("Tu próxima acción", attention, "Priorizados por seguimiento vencido y, después, intención de compra."),
+                    onClick: () => show("Contactos prioritarios", attention, "Ordenados por vencimiento e intención de compra."),
                     children: [
                       "Revisar leads ",
                       /* @__PURE__ */ jsx_runtime.jsx(ArrowRight, {
@@ -425,7 +425,7 @@ export function Overview({ onOpen }) {
                   }),
                   /* @__PURE__ */ jsx_runtime.jsxs("button", {
                     className: "insight-kpi",
-                    onClick: () => show("Visitas agendadas", visits, USE_MOCK ? "Leads cuya etapa actual es visita agendada. No incluye visitas históricas." : "Leads del período con una cita confirmada registrada en appointments. Una promesa en el chat no cuenta como reserva."),
+                    onClick: () => show("Visitas agendadas", visits, USE_MOCK ? "Leads con visita agendada en su etapa actual." : "Leads del período con una visita confirmada registrada."),
                     children: [
                       /* @__PURE__ */ jsx_runtime.jsxs("div", {
                         className: "kpi-label",
@@ -448,7 +448,7 @@ export function Overview({ onOpen }) {
                       }),
                       /* @__PURE__ */ jsx_runtime.jsx("div", {
                         className: "kpi-context",
-                        children: USE_MOCK ? "Una conversación más cerca de la decisión" : "Leads con una cita confirmada en Supabase"
+                        children: "Leads con una visita confirmada"
                       }),
                       /* @__PURE__ */ jsx_runtime.jsxs("span", {
                         className: "kpi-drill",
@@ -518,7 +518,7 @@ export function Overview({ onOpen }) {
                           /* @__PURE__ */ jsx_runtime.jsxs("div", {
                             children: [
                               /* @__PURE__ */ jsx_runtime.jsx("h2", {
-                                children: "Cómo llegan tus leads"
+                                children: "Captación de leads"
                               }),
                               /* @__PURE__ */ jsx_runtime.jsxs("p", {
                                 children: [
@@ -644,10 +644,10 @@ export function Overview({ onOpen }) {
                           /* @__PURE__ */ jsx_runtime.jsxs("div", {
                             children: [
                               /* @__PURE__ */ jsx_runtime.jsx("h2", {
-                                children: "El recorrido comercial"
+                                children: "Etapas comerciales"
                               }),
                               /* @__PURE__ */ jsx_runtime.jsx("p", {
-                                children: "Selecciona una etapa para explorar sus leads"
+                                children: "Selecciona una etapa para consultar sus contactos"
                               })
                             ]
                           }),
@@ -701,7 +701,7 @@ export function Overview({ onOpen }) {
                       }),
                       /* @__PURE__ */ jsx_runtime.jsx("p", {
                         className: "card-footnote",
-                        children: "Etapas actuales de los leads captados; no es un embudo histórico."
+                        children: "Distribución por etapa actual."
                       })
                     ]
                   }),
@@ -714,10 +714,10 @@ export function Overview({ onOpen }) {
                           /* @__PURE__ */ jsx_runtime.jsxs("div", {
                             children: [
                               /* @__PURE__ */ jsx_runtime.jsx("h2", {
-                                children: "Una acción, una oportunidad"
+                                children: "Seguimientos comerciales"
                               }),
                               /* @__PURE__ */ jsx_runtime.jsx("p", {
-                                children: "El contexto listo para que tu equipo avance"
+                                children: "Contactos pendientes y próximos seguimientos"
                               })
                             ]
                           }),
@@ -802,10 +802,10 @@ export function Overview({ onOpen }) {
                                 size: 23
                               }),
                               /* @__PURE__ */ jsx_runtime.jsx("strong", {
-                                children: attentionTab === "attention" ? "Todo al día" : "Sin contactos programados"
+                                children: attentionTab === "attention" ? "Sin pendientes" : "Sin contactos programados"
                               }),
                               /* @__PURE__ */ jsx_runtime.jsx("span", {
-                                children: attentionTab === "attention" ? "No hay pendientes en esta selección." : "Puedes programarlos desde la bandeja."
+                                children: attentionTab === "attention" ? "No hay pendientes en esta selección." : "No se registran seguimientos para esta selección."
                               })
                             ]
                           })
@@ -832,7 +832,7 @@ export function Overview({ onOpen }) {
                           /* @__PURE__ */ jsx_runtime.jsxs("div", {
                             children: [
                               /* @__PURE__ */ jsx_runtime.jsx("h2", {
-                                children: "Dos agentes, un equipo"
+                                children: "Rendimiento por agente"
                               }),
                               /* @__PURE__ */ jsx_runtime.jsx("p", {
                                 children: "Resultados dentro del período seleccionado"
@@ -932,7 +932,7 @@ export function Overview({ onOpen }) {
                         className: "district-heading",
                         children: [
                           /* @__PURE__ */ jsx_runtime.jsx("h3", {
-                            children: "Dónde está el interés"
+                            children: "Interés por distrito"
                           }),
                           /* @__PURE__ */ jsx_runtime.jsxs("span", {
                             children: [
@@ -1034,7 +1034,7 @@ export function Overview({ onOpen }) {
                   children: [
                     /* @__PURE__ */ jsx_runtime.jsx("span", {
                       className: "page-eyebrow",
-                      children: "DEL DATO A LA CONVERSACIÓN"
+                      children: "DETALLE COMERCIAL"
                     }),
                     /* @__PURE__ */ jsx_runtime.jsx(DialogClose, {
                       className: "subtle-icon",
@@ -1115,7 +1115,7 @@ export function Overview({ onOpen }) {
                             /* @__PURE__ */ jsx_runtime.jsxs("p", {
                               children: [
                                 /* @__PURE__ */ jsx_runtime.jsx("strong", {
-                                  children: "Lo que ya sabemos"
+                                  children: "Información registrada"
                                 }),
                                 profileText(c.profile.notes) ?? profileText(c.profile.objections)
                               ]
@@ -1180,7 +1180,7 @@ export function Overview({ onOpen }) {
                   })
                 }),
                 /* @__PURE__ */ jsx_runtime.jsx(DialogTitle, {
-                  children: "Indicadores que puedes entender"
+                  children: "Definición de indicadores"
                 }),
                 /* @__PURE__ */ jsx_runtime.jsx(DialogDescription, {
                   children: "Todos los resultados comparten el filtro de fecha de ingreso y agente."
