@@ -8,6 +8,11 @@ import { listContacts, listAppointments, USE_MOCK, READ_ONLY } from "./api";
 import { STAGE_META, agentName, analyticsModel, attentionReason, shortDate, ratio, isQualified } from "./analytics";
 import "./overview.css";
 import { scoreVisual } from "./score";
+import "./editorial.css";
+
+function ReportChapter({ number, title, description }) {
+  return <div className="report-chapter"><span aria-hidden="true">{number}</span><div><h2>{title}</h2><p>{description}</p></div></div>;
+}
 
 var percent = (value) => value === null ? "—" : value + "%";
 var initials = (c) => (c.name ?? "Lead").split(" ").slice(0, 2).map((s) => s[0]).join("");
@@ -87,7 +92,7 @@ export function Overview({ onOpen }) {
     setTimeout(() => setExported(false), 2200);
   };
   return /* @__PURE__ */ jsx_runtime.jsxs("main", {
-    className: "insights-workspace",
+    className: "insights-workspace editorial-report",
     children: [
       /* @__PURE__ */ jsx_runtime.jsxs("div", {
         className: "insights-topline",
@@ -145,7 +150,7 @@ export function Overview({ onOpen }) {
                     ]
                   }),
                   /* @__PURE__ */ jsx_runtime.jsx("p", {
-                    children: "Indicadores de captación, calificación y seguimiento de leads."
+                    children: "Del primer contacto a la próxima visita. La operación, en perspectiva."
                   })
                 ]
               }),
@@ -304,15 +309,15 @@ export function Overview({ onOpen }) {
                 children: [
                   /* @__PURE__ */ jsx_runtime.jsx("div", {
                     className: "priority-icon",
-                    children: /* @__PURE__ */ jsx_runtime.jsx(Sparkles, {
-                      size: 22
+                    children: /* @__PURE__ */ jsx_runtime.jsx(Clock3, {
+                      size: 28
                     })
                   }),
                   /* @__PURE__ */ jsx_runtime.jsxs("div", {
                     children: [
                       /* @__PURE__ */ jsx_runtime.jsx("span", {
                         className: "priority-eyebrow",
-                        children: "SEGUIMIENTOS PRIORITARIOS"
+                        children: "PRIORIDAD DEL PERÍODO"
                       }),
                       /* @__PURE__ */ jsx_runtime.jsx("h2", {
                         children: overdue.length ? overdue.length + (overdue.length === 1 ? " seguimiento vencido" : " seguimientos vencidos") : attention.length ? attention.length + " conversaciones pendientes de revisión" : "Sin seguimientos vencidos"
@@ -333,6 +338,7 @@ export function Overview({ onOpen }) {
                   })
                 ]
               }),
+              <ReportChapter number="01" title="Resultados del período" description="Selecciona un indicador para consultar los leads que lo componen." />,
               /* @__PURE__ */ jsx_runtime.jsxs("section", {
                 className: "insight-kpis",
                 "aria-label": "Indicadores del período",
@@ -509,6 +515,7 @@ export function Overview({ onOpen }) {
               /* @__PURE__ */ jsx_runtime.jsxs("div", {
                 className: "insights-main-grid",
                 children: [
+                  <ReportChapter number="02" title="Captación y avance comercial" description="Volumen de nuevos contactos y distribución por etapa actual." />,
                   /* @__PURE__ */ jsx_runtime.jsxs("section", {
                     className: "report-card acquisition-card",
                     children: [
@@ -580,7 +587,7 @@ export function Overview({ onOpen }) {
                                 dataKey: "label",
                                 tickLine: false,
                                 axisLine: false,
-                                tick: { fill: "#6d7871", fontSize: 11 },
+                                tick: { fill: "#465c50", fontSize: 13 },
                                 minTickGap: 24,
                                 dy: 10
                               }),
@@ -588,7 +595,7 @@ export function Overview({ onOpen }) {
                                 allowDecimals: false,
                                 tickLine: false,
                                 axisLine: false,
-                                tick: { fill: "#6d7871", fontSize: 11 }
+                                tick: { fill: "#465c50", fontSize: 13 }
                               }),
                               /* @__PURE__ */ jsx_runtime.jsx(Tooltip, {
                                 cursor: { fill: "#f0f4f1" },
@@ -705,6 +712,7 @@ export function Overview({ onOpen }) {
                       })
                     ]
                   }),
+                  <ReportChapter number="03" title="Seguimiento y contexto" description="Contactos por atender, resultados por agente e interés geográfico." />,
                   /* @__PURE__ */ jsx_runtime.jsxs("section", {
                     className: "report-card action-card",
                     children: [

@@ -1,0 +1,107 @@
+/* Editorial hierarchy adapted to an operational dashboard: no rotated data or decorative charts. */
+@font-face { font-family: "Mensajito Fraunces"; src: url("./fonts/Fraunces-Variable.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Mensajito Mulish"; src: url("./fonts/Mulish-Variable.ttf") format("truetype"); font-weight: 200 1000; font-display: swap; }
+
+.insights-workspace.editorial-report {
+  --paper: #faf8f3;
+  --forest: #203f31;
+  --muted-ink: #536357;
+  --rule: #d8dfd3;
+  background: var(--paper);
+  color: var(--forest);
+  font-family: "Mensajito Mulish", system-ui, sans-serif;
+}
+.editorial-report button, .editorial-report select { font-family: inherit; }
+.editorial-report .insights-page { max-width: 1580px; padding: 32px 38px; }
+.editorial-report .insights-topline { background: var(--paper); font-size: 13px; border-color: var(--rule); }
+.editorial-report .insights-heading { align-items: flex-end; margin-bottom: 24px; }
+.editorial-report .page-eyebrow { font-size: 11px; color: #536746; letter-spacing: .13em; }
+.editorial-report .insights-heading h1 { font-family: "Mensajito Fraunces", Georgia, serif; font-size: clamp(36px, 3.5vw, 54px); font-weight: 700; letter-spacing: -.035em; line-height: 1.1; margin: 12px 0; }
+.editorial-report .insights-heading h1 > span { color: #7f965e; }
+.editorial-report .insights-heading p { color: var(--muted-ink); font-size: 16px; line-height: 1.5; max-width: 660px; }
+.editorial-report .heading-actions { padding-bottom: 5px; }
+.editorial-report .outline-action { font-size: 14px; height: 44px; border-color: #b8c5b1; background: transparent; }
+.editorial-report .subtle-icon { width: 44px; height: 44px; }
+.editorial-report .insights-filterbar { border-color: #becaba; margin-bottom: 24px; }
+.editorial-report .report-tabs, .editorial-report .report-select select { font-size: 14px; }
+.editorial-report .report-select { min-height: 44px; background: #fff; }
+.editorial-report .priority-banner { padding: 22px 24px; border: 1px solid #b4c5a6; border-left: 5px solid #607d44; border-radius: 4px 14px 14px 4px; background: #eaf0df; box-shadow: 0 4px 0 #dde4d2; margin-bottom: 30px; gap: 20px; }
+.editorial-report .priority-icon { background: transparent; width: 36px; color: #476234; }
+.editorial-report .priority-eyebrow { color: #52663f; font-size: 10px; letter-spacing: .12em; }
+.editorial-report .priority-banner h2 { font-family: "Mensajito Fraunces", Georgia, serif; font-size: clamp(23px, 2vw, 29px); color: #29432c; font-weight: 650; margin: 7px 0; }
+.editorial-report .priority-banner p { font-size: 14px; color: #4a5e42; }
+.editorial-report .priority-banner > button { min-height: 44px; color: #fff; border: 1px solid #294632; background: #294632; font-size: 14px; }
+.editorial-report .priority-banner > button:hover { background: #3d5c43; }
+.report-chapter { display: flex; align-items: flex-start; gap: 14px; margin: 0 0 16px; }
+.report-chapter > span { font-size: 12px; font-weight: 800; letter-spacing: .08em; padding-top: 7px; color: #718051; }
+.report-chapter h2 { margin: 0; font-size: 22px; font-family: "Mensajito Fraunces", Georgia, serif; font-weight: 600; letter-spacing: -.02em; }
+.report-chapter p { margin: 5px 0 0; font-size: 13px; color: #536357; line-height: 1.5; }
+.editorial-report .insight-kpis { gap: 16px; margin-bottom: 34px; }
+.editorial-report .insight-kpi { border-color: #d3dbcd; border-radius: 12px; padding: 22px 22px 16px; box-shadow: none; }
+.editorial-report .insight-kpi:hover { border-color: #70885a; transform: translateY(-2px); box-shadow: 0 3px 0 #dbe2d2; }
+.editorial-report .kpi-label { font-size: 15px; font-weight: 700; color: #3f5445; }
+.editorial-report .kpi-label svg { color: #69835e; }
+.editorial-report .kpi-value { font-size: clamp(42px, 3.8vw, 58px); font-weight: 800; letter-spacing: -.04em; margin: 18px 0 12px; }
+.editorial-report .kpi-unit { font-size: 13px; color: #57664e; }
+.editorial-report .kpi-context { min-height: 42px; font-size: 13px; color: #506148; }
+.editorial-report .kpi-drill { font-size: 12px; color: #47613c; border-color: #e0e6db; }
+.editorial-report .kpi-attention { background: #fbf5e7; border-color: #dacba4; }
+.editorial-report .insights-main-grid { gap: 22px; }
+.editorial-report .insights-main-grid > .report-chapter { grid-column: 1 / -1; margin: 8px 0 -6px; }
+.editorial-report .report-card { padding: 24px 24px 0; border: 1px solid #d5ddcf; border-radius: 12px; }
+.editorial-report .report-card-header h2 { font-size: 18px; font-weight: 800; color: #2d4836; }
+.editorial-report .report-card-header p { font-size: 13px; color: #54664c; }
+.editorial-report .chart-legend { font-size: 13px; color: #506148; }
+.editorial-report .chart-total { font-size: 34px; }
+.editorial-report .chart-total small { font-size: 12px; color: #53634c; }
+.editorial-report .acquisition-chart { height: 280px; margin-top: 22px; }
+.editorial-report .chart-caption, .editorial-report .chart-caption button { font-size: 12px; color: #506148; }
+.editorial-report .pipeline-stages button { min-height: 38px; font-size: 13px; }
+.editorial-report .pipeline-stages small { font-size: 12px; color: #586b50; }
+.editorial-report .card-footnote { font-size: 12px; color: #586b50; line-height: 1.5; }
+.editorial-report .action-tabs button { min-height: 44px; font-size: 13px; }
+.editorial-report .attention-info strong { font-size: 15px; }
+.editorial-report .attention-summary { font-size: 14px; color: #53634c; }
+.editorial-report .attention-info small { font-size: 12px; }
+.editorial-report .card-bottom-link { font-size: 13px; min-height: 46px; }
+.editorial-report .agent-heading strong { font-size: 15px; }
+.editorial-report .agent-heading small { font-size: 11px; color: #53634c; }
+.editorial-report .agent-numbers b { font-size: 29px; }
+.editorial-report .agent-numbers span, .editorial-report .agent-progress { font-size: 12px; }
+.editorial-report .district-heading { font-size: 15px; }
+.editorial-report .district-ranking button { font-size: 13px; min-height: 42px; }
+.editorial-report .insights-footer { font-size: 12px; color: #53634c; margin-top: 24px; }
+.editorial-report .insights-footer button { font-size: 12px; color: #47613c; }
+.insights-drawer, .definitions-dialog { font-family: "Mensajito Mulish", system-ui, sans-serif; }
+.insights-drawer h2, .definitions-dialog h2 { font-family: "Mensajito Fraunces", Georgia, serif; }
+@media (max-width: 1200px) {
+  .editorial-report .insights-page { padding: 26px; }
+  .editorial-report .insight-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .editorial-report .insights-main-grid { grid-template-columns: minmax(0, 1fr); }
+  .editorial-report .insights-heading { align-items: flex-start; }
+}
+@media (max-width: 600px) {
+  .editorial-report .insights-page { padding: 22px 16px; }
+  .editorial-report .insights-heading { flex-direction: column; gap: 12px; }
+  .editorial-report .insights-heading h1 { font-size: 36px; }
+  .editorial-report .insights-heading p { font-size: 14px; }
+  .editorial-report .insight-kpis { gap: 10px; }
+  .editorial-report .insight-kpi { padding: 16px 12px 12px; }
+  .editorial-report .kpi-label { font-size: 13px; }
+  .editorial-report .kpi-label svg { display: none; }
+  .editorial-report .kpi-value { font-size: 40px; flex-wrap: wrap; }
+  .editorial-report .kpi-context { font-size: 12px; min-height: 55px; }
+  .editorial-report .kpi-drill { font-size: 11px; }
+  .editorial-report .heading-actions .outline-action { width: auto; min-width: 112px; padding: 0 14px; }
+  .editorial-report .priority-banner { display: flex; flex-direction: column; align-items: stretch; padding: 18px; gap: 12px; }
+  .editorial-report .priority-icon { display: none; }
+  .editorial-report .priority-banner > button { margin-left: 0; align-self: flex-start; }
+  .editorial-report .report-card { padding: 20px 16px 0; }
+  .editorial-report .report-chapter h2 { font-size: 22px; }
+  .editorial-report .insights-filterbar { align-items: stretch; flex-direction: column; gap: 10px; }
+  .editorial-report .report-controls { flex-wrap: wrap; }
+  .editorial-report .agent-scorecards { grid-template-columns: minmax(0, 1fr); }
+  .editorial-report .insights-footer { flex-wrap: wrap; gap: 12px; }
+  .editorial-report .insights-footer > span { max-width: 100%; flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) { .editorial-report .insight-kpi:hover { transform: none; } }
