@@ -1,67 +1,55 @@
-import express from "express";
-import { waitUntil } from "@vercel/functions";
-import { verifyKapsoSignature } from "./src/kapso/verify-signature";
-import { processKapsoWebhook } from "./src/webhooks/process-kapso-webhook";
+import { config } from "./src/config";
+import { verifyWebhookSignature } from "./src/crypto";
+import { handleWhatsAppBody } from "./src/handle-inbound";
 
-const app = express();
+async function kapsoWebhook(req: Request): Promise<Response> {
+  const rawBody = await req.text();
+  const signature = req.headers.get("x-webhook-signature");
 
-app.get("/", (_request, response) => {
-  response.json({ service: "mensajito", status: "ok" });
-});
+  if (!verifyWebhookSignature(rawBody, signature, config.webhookSecret)) {
+    return new Response("Invalid signature", { status: 401 });
+  }
 
-app.get("/health", (_request, response) => {
-  response.json({ status: "healthy" });
-});
+  const eventName = req.headers.get("x-webhook-event");
+  if (eventName && eventName !== "whatsapp.message.received") {
+    return new Response("OK");
+  }
 
-app.post(
-  "/webhooks/kapso",
-  express.raw({ type: "application/json" }),
-  async (request, response) => {
-    const rawBody = Buffer.isBuffer(request.body)
-      ? request.body
-      : Buffer.from(request.body ?? "");
-    const signature = request.header("x-webhook-signature");
-    const secret = process.env.KAPSO_WEBHOOK_SECRET;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawBody);
+  } catch {
+    return new Response("Invalid JSON", { status: 400 });
+  }
 
-    if (!secret || !verifyKapsoSignature(rawBody, signature, secret)) {
-      response.status(401).send("Invalid signature");
-      return;
-    }
-
-    let payload: unknown;
-    try {
-      payload = JSON.parse(rawBody.toString("utf8"));
-    } catch {
-      response.status(400).send("Invalid JSON");
-      return;
-    }
-
-    const task = processKapsoWebhook({
-      payload,
-      eventName: request.header("x-webhook-event") ?? "unknown",
-      idempotencyKey: request.header("x-idempotency-key") ?? undefined,
-    }).catch((error) => {
-      console.error("Kapso webhook processing failed", error);
-    });
-
-    if (process.env.VERCEL) {
-      waitUntil(task);
-      response.status(200).send("OK");
-      return;
-    }
-
-    await task;
-    response.status(200).send("OK");
-  },
-);
-
-app.use(express.json());
-
-if (!process.env.VERCEL) {
-  const port = Number(process.env.PORT ?? 3000);
-  app.listen(port, () => {
-    console.log(`Mensajito escuchando en http://localhost:${port}`);
+  const idempotencyKey = req.headers.get("x-idempotency-key");
+  handleWhatsAppBody(parsed, idempotencyKey).catch((error) => {
+    console.error(
+      JSON.stringify({
+        msg: "whatsapp_inbound_failed",
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
   });
+
+  return new Response("OK");
 }
 
-export default app;
+Bun.serve({
+  port: config.port,
+  routes: {
+    "/": () => new Response("mensajito ok"),
+    "/health": () => Response.json({ ok: true }),
+    "/webhooks/whatsapp": { POST: kapsoWebhook },
+    "/webhooks/kapso": { POST: kapsoWebhook },
+  },
+});
+
+console.log(
+  JSON.stringify({
+    msg: "mensajito_listening",
+    port: config.port,
+    salesPhoneNumberId: config.salesPhoneNumberId,
+    housingPhoneNumberId: config.housingPhoneNumberId,
+  }),
+);

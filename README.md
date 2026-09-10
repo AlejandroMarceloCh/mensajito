@@ -1,42 +1,66 @@
-# Receptionist AI
+# Mensajito
 
-Agente inmobiliario para WhatsApp construido con Bun, TypeScript, Express, Kapso,
-LangChain y Supabase. Está preparado para desplegarse en Vercel.
+Plan de trabajo por persona (endpoints, estilo, frentes en paralelo): **[docs/plan-equipo.md](docs/plan-equipo.md)**.
+
+Dos agentes de WhatsApp en un mismo webhook: uno comercial (atiende, califica y agenda visitas) y otro de orientación para Fondo MIVIVIENDA / Techo Propio. Cada agente usa su propio número. El enrutado es por `phone_number_id` de Kapso, como en el [curso receptionist-ai](https://github.com/crafter-station/receptionist-ai), con LangChain para herramientas, historial y conocimiento.
+
+## Agentes
+
+| Número | Variable | Agente | Qué hace |
+| --- | --- | --- | --- |
+| 1 | `SALES_PHONE_NUMBER_ID` | Tami (ventas) | Responde 24/7, califica intención, objeciones, recomienda del catálogo y agenda visita |
+| 2 | `HOUSING_PHONE_NUMBER_ID` | Milo (vivienda) | Explica Mivivienda / Techo Propio / BBP, estima capacidad de pago y sugiere proyectos |
+
+El flujo comercial sigue la idea de [Pascal](https://www.iapascal.com/es): lead → atención → calificación → seguimiento → visita.
+
+El de vivienda hace una **preprospectación** (no es calificación oficial del FMV ni del banco) y recién después recomienda el catálogo.
+
+## Stack
+
+- Bun + TypeScript
+- Kapso WhatsApp Cloud API ([firma HMAC del cuerpo crudo](https://docs.kapso.ai/docs/platform/webhooks/security))
+- LangChain (`ChatOpenAI` + tools)
+- Supabase (Postgres) para contactos, conversaciones, perfiles y follow-ups
+
+Cal.com es opcional, igual que en el recepcionista del curso.
 
 ## Configuración
 
-Instala las dependencias:
-
 ```bash
 bun install
-```
-
-Crea tu configuración local:
-
-```bash
 cp .env.example .env
 ```
 
-Completa en `.env` las credenciales de Kapso, la Secret key de Supabase y la API
-key del modelo. Nunca subas ese archivo al repositorio.
+Completa Kapso, los dos `phone_number_id`, OpenAI y las claves de Supabase (`SUPABASE_URL` + `SUPABASE_SECRET_KEY`).
 
-Aplica la migración inicial ubicada en
-`supabase/migrations/20260910204500_initial_lead_memory.sql` a tu proyecto de
-Supabase.
+Aplica las migraciones de `supabase/migrations/` en el SQL editor de Supabase (primero `...initial_lead_memory.sql`, luego `...agent_and_projects.sql`).
 
-## Ejecutar
+En Kapso conecta **dos** números y apunta ambos webhooks (o un webhook de proyecto) a:
 
-```bash
-bun run index.ts
-```
+`https://<tu-dominio>/webhooks/whatsapp`
 
-El servidor queda disponible en `http://localhost:3000` y expone:
+(`POST /webhooks/kapso` es el mismo handler, por compatibilidad con el código anterior.)
 
-- `GET /health` — comprobación de salud.
-- `POST /webhooks/kapso` — recepción segura de eventos de Kapso.
+Evento: `whatsapp.message.received`. Mismo `KAPSO_WEBHOOK_SECRET` que en `.env`. Payload v2.
 
-Para enviar el mensaje aislado de prueba:
+Localmente:
 
 ```bash
-bun run send:test
+bun run dev
+ngrok http 3000
 ```
+
+Envío de prueba (no es el webhook; solo un saludo saliente):
+
+```bash
+TEST_AGENT=sales bun run send:test
+TEST_AGENT=housing bun run send:test
+```
+
+## Cómo ampliar el catálogo y el conocimiento
+
+- Proyectos: `src/catalog.ts`
+- Programas FMV: `src/knowledge.ts` (el tool `consultar_programas` busca ahí)
+- Prompts: `src/agent.ts`
+
+Los montos de bonos y topes de UIT cambian. El agente está instruido a tratarlos como referenciales.
