@@ -7,10 +7,17 @@
     "dev": "bun --hot index.ts",
     "start": "bun index.ts",
     "test": "bun test",
-    "send:test": "bun scripts/send-test.ts"
+    "send:test": "bun scripts/send-test.ts",
+    "dev:dashboard": "bun --hot src/dashboard/index.html",
+    "dev:dashboard:live": "bun --env-file .env.dashboard.local --hot src/dashboard-server.ts",
+    "build:dashboard": "bun build src/dashboard/index.html --outdir dist --minify",
+    "typecheck:dashboard": "bunx tsc --noEmit -p tsconfig.dashboard.json",
+    "test:dashboard": "bun test src/dashboard/api.test.ts src/dashboard/analytics.test.ts src/dashboard-data.test.ts src/dashboard-http.test.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -20,6 +27,11 @@
     "@langchain/core": "^0.3.78",
     "@langchain/openai": "^0.3.17",
     "@supabase/supabase-js": "^2.116.0",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@radix-ui/react-dialog": "^1.1.23",
+    "lucide-react": "^1.44.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "recharts": "^3.10.1"
   }
 }

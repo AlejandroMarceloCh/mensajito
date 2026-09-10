@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "bun run build:dashboard",
+  "outputDirectory": "dist",
+  "functions": { "api/**/*.ts": { "maxDuration": 30 } },
+  "rewrites": [
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/contacts/:id", "destination": "/index.html" }
+  ],
+  "headers": [
+    { "source": "/(.*)", "headers": [
+      { "key": "X-Content-Type-Options", "value": "nosniff" },
+      { "key": "X-Frame-Options", "value": "DENY" },
+      { "key": "Referrer-Policy", "value": "same-origin" }
+    ] }
+  ]
+}
