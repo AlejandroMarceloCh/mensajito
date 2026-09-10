@@ -3,13 +3,28 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "bun --watch index.ts",
+    "start": "bun index.ts",
+    "typecheck": "tsc --noEmit",
+    "send:test": "bun scripts/send-test.ts"
+  },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "@types/express": "^5.0.6"
   },
   "peerDependencies": {
     "typescript": "^7"
   },
   "dependencies": {
-    "@kapso/whatsapp-cloud-api": "^0.3.0"
+    "@kapso/whatsapp-cloud-api": "^0.3.0",
+    "@langchain/core": "^1.2.10",
+    "@langchain/langgraph": "^1.4.14",
+    "@langchain/openai": "^1.5.12",
+    "@supabase/supabase-js": "^2.116.0",
+    "@vercel/functions": "^3.9.7",
+    "express": "^5.2.1",
+    "langchain": "^1.5.11",
+    "zod": "^4.6.1"
   }
 }
