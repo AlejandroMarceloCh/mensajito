@@ -7,6 +7,7 @@ import { Root as Dialog, Close as DialogClose, Description as DialogDescription,
 import { listContacts, listAppointments, USE_MOCK, READ_ONLY } from "./api";
 import { STAGE_META, agentName, analyticsModel, attentionReason, shortDate, ratio, isQualified } from "./analytics";
 import "./overview.css";
+import { scoreVisual } from "./score";
 
 var percent = (value) => value === null ? "—" : value + "%";
 var initials = (c) => (c.name ?? "Lead").split(" ").slice(0, 2).map((s) => s[0]).join("");
@@ -1085,8 +1086,10 @@ export function Overview({ onOpen }) {
                               ]
                             }),
                             /* @__PURE__ */ jsx_runtime.jsx("span", {
-                              className: "score-chip",
-                              children: c.intentScore ? c.intentScore + "/5" : "Sin score"
+                              className: "score-chip score-tone score-tone--" + scoreVisual(c.intentScore).tone,
+                              title: scoreVisual(c.intentScore).label,
+                              "aria-label": scoreVisual(c.intentScore).label + (scoreVisual(c.intentScore).tone !== "none" ? ": " + c.intentScore + " de 5" : ""),
+                              children: scoreVisual(c.intentScore).tone !== "none" ? c.intentScore + "/5" : "Sin evaluar"
                             })
                           ]
                         }),

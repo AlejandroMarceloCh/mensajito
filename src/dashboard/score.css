@@ -1,0 +1,10 @@
+.score-tone--low { --score-fg:#a42620; --score-bg:#fff0ed; --score-fill:#d92d20; }
+.score-tone--medium { --score-fg:#865200; --score-bg:#fff6db; --score-fill:#d99a06; }
+.score-tone--high { --score-fg:#17603c; --score-bg:#e9f7ed; --score-fill:#219653; }
+.score-tone--none { --score-fg:#5b6661; --score-bg:#f0f2f1; --score-fill:#8c9690; }
+.score.score-tone, .score-chip.score-tone { color:var(--score-fg); background:var(--score-bg); padding:4px 8px; border-radius:6px; font-weight:700; gap:5px; white-space:nowrap; }
+.score.score-tone::before, .score-chip.score-tone::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--score-fill); flex-shrink:0; }
+.intent-block.score-tone { border-color:var(--score-fill); background:var(--score-bg); }
+.intent-block.score-tone strong, .intent-block.score-tone .score-level { color:var(--score-fg); }
+.intent-block.score-tone .meter > span { background:var(--score-fill); }
+.intent-block.score-tone .score-level { display:block; font-size:13px; font-weight:650; margin-top:9px; }

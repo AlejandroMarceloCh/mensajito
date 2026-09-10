@@ -3,6 +3,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { Overview } from "./overview.jsx";
 import { LayoutDashboard, Inbox, LogOut } from "lucide-react";
 import "./live-inbox.css";
+import { scoreVisual } from "./score";
+import "./score.css";
 import type { AgentKind, ContactDetail, ContactListItem, Stage, Stats } from "./types";
 import { STAGES, STAGE_TRANSITIONS } from "./types";
 import {
@@ -157,8 +159,9 @@ function StagePill({ stage }: { stage: Stage }) {
 }
 
 function Score({ value }: { value: number | null }) {
-  if (!value) return <span className="score score--empty">Sin score</span>;
-  return <span className="score" aria-label={`Intención ${value} de 5`}><Icon name="spark" size={13}/> {value}/5</span>;
+  const visual = scoreVisual(value);
+  if (visual.tone === "none") return <span className="score score-tone score-tone--none">Sin evaluar</span>;
+  return <span className={`score score-tone score-tone--${visual.tone}`} title={visual.label} aria-label={`${visual.label}: ${value} de 5`}>{value}/5</span>;
 }
 
 function App() {
@@ -495,7 +498,7 @@ function LeadDetail({
           {panel === "profile" ? <>
             <section className="context-section">
               <h3>Calificación</h3>
-              <div className="intent-block"><div><span>Intención de compra</span><strong>{contact.intentScore ? `${contact.intentScore}/5` : "Sin evaluar"}</strong></div><div className="meter"><span style={{ width: `${(contact.intentScore ?? 0) * 20}%` }}/></div></div>
+              <div className={`intent-block score-tone score-tone--${scoreVisual(contact.intentScore).tone}`}><div><span>Intención de compra</span><strong>{scoreVisual(contact.intentScore).tone !== "none" ? `${contact.intentScore}/5` : "Sin evaluar"}</strong></div><div className="meter"><span style={{ width: `${scoreVisual(contact.intentScore).tone === "none" ? 0 : (contact.intentScore ?? 0) * 20}%` }}/></div><span className="score-level">{scoreVisual(contact.intentScore).label}</span></div>
               <dl className="profile-grid">
                 {profileFields.length ? profileFields.map(([label, value]) => <div key={String(label)}><dt>{label}</dt><dd>{String(value)}</dd></div>) : <p className="muted">No hay datos de calificación registrados para este lead.</p>}
               </dl>
